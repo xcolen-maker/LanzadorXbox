@@ -6,6 +6,8 @@ A Windows launcher that installs, updates and runs Xbox Series emulators on PC:
 [VIctory NVIDIA](https://github.com/trustno1-coder/VIctory-NVIDIA). You can also add
 other forks of VIctory or xcl yourself.
 
+**Install and run Xbox Series emulators in one click, with no manual compiling.** The launcher downloads, builds and updates them for you.
+
 No game is included. You need your own copy.
 
 The interface is available in **English, Spanish, Portuguese, French and Russian**. The
@@ -205,6 +207,10 @@ ISCC.exe installer\LanzadorXbox.iss
 
 It ends up in `dist\`. It installs per user (no administrator rights), creates Start menu
 shortcuts and, if chosen, a desktop shortcut, and can be uninstalled from Windows.
+
+## Contributing
+
+Bug reports, translations and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## License
 
