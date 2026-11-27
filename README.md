@@ -23,6 +23,34 @@ Get the latest version from [Releases](../../releases/latest):
 The program is not signed, so Windows may show **"Windows protected your PC"**. Click
 **More info → Run anyway**.
 
+### Antivirus warnings (false positives)
+
+A few antivirus engines may flag the installer. On
+[VirusTotal](https://www.virustotal.com/gui/file/0cb609fecdce19221604f1aa5082221344af10d39b1d068f78217f1ee25b2598),
+`LanzadorXbox-Setup-0.2.0.exe` is flagged by **4 of 70** engines (Arctic Wolf,
+DeepInstinct, SecureAge and Skyhigh), with the generic label `ObfuscatedPoly`. The other
+66, including Microsoft Defender, Kaspersky, ESET, Bitdefender and Avast, detect nothing.
+
+These are false positives. The reasons:
+
+- **They are AI/heuristic engines.** They don't match a known virus; they guess from how
+  the file looks. `ObfuscatedPoly` means "looks like obfuscated code", not a named threat.
+- **The installer is compressed.** Inno Setup stores the launcher and its images
+  compressed at the end of the `.exe` (the `overlay` tag on VirusTotal). To an automated
+  scan, compressed data looks like obfuscated data, which is a trick malware uses to
+  hide. This happens to many legitimate installers.
+- **It is not code-signed.** A publisher certificate is what gives Windows and antivirus
+  software a reason to trust a file.
+- **It is a new file.** Reputation-based engines distrust anything nobody has seen before.
+  This improves on its own as more people download it.
+- **What the launcher does looks like what malware does.** It downloads code from the
+  internet, runs programs (`git`, `cargo`) and can stop processes. That is exactly what it
+  needs to install and run the emulators, but a heuristic engine can't tell the difference.
+
+You can check it yourself: the source code is in this repository, and you can build the
+`.exe` from it (see [Building](#building)). The portable ZIP contains the same
+`Lanzador-Xbox.exe` without the installer's compression.
+
 ## How to use it
 
 1. Open `Lanzador-Xbox.exe`. The first time, the **initial setup** screen appears
