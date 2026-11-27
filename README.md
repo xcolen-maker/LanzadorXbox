@@ -72,6 +72,17 @@ El ejecutable queda en `target\release\xbox-lanzador.exe`. El icono (`icon\app.i
 mete en el `.exe` al compilar; hace falta el SDK de Windows (sin él compila igual, pero
 sin icono).
 
+## Instalador
+
+El instalador (`LanzadorXbox-Setup-<versión>.exe`) se genera con [Inno Setup 6](https://jrsoftware.org/isinfo.php):
+
+```
+ISCC.exe installer\LanzadorXbox.iss
+```
+
+Queda en `dist\`. Instala para el usuario (sin permisos de administrador), crea los accesos
+directos del menú Inicio y, si se elige, del escritorio, y se puede desinstalar desde Windows.
+
 ## Licencia
 
 [MIT](LICENSE). Los emuladores tienen sus propias licencias, en sus repositorios.
