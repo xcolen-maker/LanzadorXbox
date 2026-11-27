@@ -10,6 +10,16 @@ No game is included. You need your own copy.
 
 The launcher's interface is in Spanish.
 
+## Screenshots
+
+An emulator that is not installed yet, ready to install:
+
+![Lanzador Xbox with xcl selected, showing the INSTALAR button](docs/screenshots/install.webp)
+
+An installed emulator with an update available, ready to play:
+
+![Lanzador Xbox with VIctory NVIDIA selected, showing the JUGAR and ACTUALIZAR buttons](docs/screenshots/play.webp)
+
 ## Download
 
 Get the latest version from [Releases](../../releases/latest):
