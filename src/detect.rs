@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 
 /// Deja una dirección de git en una forma comparable:
 /// `https://github.com/A/B.git`, `git@github.com:a/b` → `github.com/a/b`.
-fn norm_url(u: &str) -> String {
+pub fn norm_url(u: &str) -> String {
     let mut u = u.trim().to_lowercase();
     for p in ["https://", "http://", "ssh://", "git://"] {
         if let Some(r) = u.strip_prefix(p) {

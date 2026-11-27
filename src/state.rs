@@ -1,6 +1,6 @@
 //! El estado que comparten la ventana y las tareas en segundo plano.
 
-use crate::config::Config;
+use crate::config::{self, Config, Kind};
 use crate::detect;
 use crate::prereq::{self, Prereq};
 use crate::repo::{self, Status};
@@ -33,6 +33,8 @@ pub struct Shared {
     pub exits: Mutex<HashMap<String, String>>,
     /// Copias de cada emulador que ya hay en esta PC, fuera de donde las busca el lanzador.
     pub found: Mutex<HashMap<String, Vec<PathBuf>>>,
+    /// El emulador que se acaba de agregar, para que la ventana lo muestre.
+    pub added: Mutex<Option<String>>,
     /// El último aviso y si es un error.
     pub message: Mutex<(String, bool)>,
     pub ctx: egui::Context,
@@ -54,6 +56,7 @@ impl Shared {
             running: Mutex::default(),
             exits: Mutex::default(),
             found: Mutex::default(),
+            added: Mutex::default(),
             message: Mutex::default(),
             ctx,
         })
@@ -115,17 +118,67 @@ impl Shared {
             self.say("Cerrá el juego antes de cambiar la carpeta del emulador.", true);
             return;
         }
-        let Some(default) = Config::defaults_repo(id) else { return };
+        let Some(default) = lock(&self.cfg).default_path(id) else { return };
         {
             let mut c = lock(&self.cfg);
             let Some(r) = c.repos.iter_mut().find(|r| r.id == id) else { return };
-            r.path = path.map(|p| p.to_string_lossy().into_owned()).unwrap_or(default.path);
+            r.path = path.map(|p| p.to_string_lossy().into_owned()).unwrap_or(default);
             let (name, shown) = (r.name.clone(), r.path.clone());
             c.built.remove(id);
             c.save();
             drop(c);
             self.say(format!("{name} ahora usa {shown}"), false);
         }
+        self.refresh();
+    }
+
+    /// Agrega un emulador (un fork de VIctory o de xcl). Antes comprueba que la dirección
+    /// exista y averigua su rama principal, sin descargar nada todavía.
+    pub fn add_custom(self: &Arc<Self>, name: String, url: String, kind: Kind, branch: String) {
+        self.start_job(format!("Agregando {}", name.trim()), move |sh, _cancel| {
+            let url = url.trim().trim_end_matches('/').to_string();
+            if name.trim().is_empty() {
+                return Err("Poné un nombre para el emulador.".into());
+            }
+            if !(url.starts_with("https://") || url.starts_with("http://")) || url.matches('/').count() < 4 {
+                return Err("La dirección tiene que ser como https://github.com/dueño/repositorio".into());
+            }
+            let norm = detect::norm_url(&url);
+            if let Some(r) = sh.cfg().repos.iter().find(|r| detect::norm_url(&r.url) == norm) {
+                return Err(format!("Ese repositorio ya está en el lanzador, como {}.", r.name));
+            }
+            sh.log(format!("Comprobando {url} …"));
+            let branch = match branch.trim() {
+                "" => repo::default_branch(&url)?,
+                b => {
+                    repo::check_branch(&url, b)?;
+                    b.to_string()
+                }
+            };
+            let mut c = lock(&sh.cfg);
+            let r = config::custom_repo(&c, &name, &url, kind, &branch);
+            let (id, shown) = (r.id.clone(), r.name.clone());
+            c.repos.push(r);
+            c.save();
+            drop(c);
+            *lock(&sh.added) = Some(id);
+            Ok(format!("{shown} se agregó (rama {branch}). Ahora podés instalarlo."))
+        });
+    }
+
+    /// Quita un emulador agregado por la persona. No borra su carpeta.
+    pub fn remove_custom(self: &Arc<Self>, id: &str) {
+        if lock(&self.running).contains_key(id) {
+            self.say("Cerrá el juego antes de quitar el emulador.", true);
+            return;
+        }
+        let mut c = lock(&self.cfg);
+        let Some(pos) = c.repos.iter().position(|r| r.id == id && r.custom) else { return };
+        let r = c.repos.remove(pos);
+        c.built.remove(id);
+        c.save();
+        drop(c);
+        self.say(format!("Se quitó {} del lanzador. Sus archivos siguen en {}", r.name, r.path), false);
         self.refresh();
     }
 

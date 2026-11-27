@@ -72,7 +72,7 @@ fn cli(args: &[String]) {
         }
         "--install" => {
             let Some(r) = args.get(1).and_then(|id| cfg.repo(id)) else {
-                out("Uso: --install <xcl|victory|fork|nvidia>");
+                out("Uso: --install <id> (xcl, victory, fork, nvidia o uno agregado)");
                 return;
             };
             match repo::install(r, &cancel, &|l| out(&format!("  {l}"))) {
@@ -90,6 +90,32 @@ fn cli(args: &[String]) {
                 }
             }
         }
+        "--add" => {
+            // Lo mismo que "Agregar emulador": --add <nombre> <dirección> [victory|xcl] [rama]
+            let (Some(name), Some(url)) = (args.get(1), args.get(2)) else {
+                out("Uso: --add <nombre> <dirección> [victory|xcl] [rama]");
+                return;
+            };
+            if let Some(r) = cfg.repos.iter().find(|r| detect::norm_url(&r.url) == detect::norm_url(url)) {
+                out(&format!("ERROR: ese repositorio ya está en el lanzador, como {}.", r.name));
+                return;
+            }
+            let kind = if args.get(3).is_some_and(|k| k == "xcl") { config::Kind::Xcl } else { config::Kind::Victory };
+            let branch = match args.get(4) {
+                Some(b) => repo::check_branch(url, b).map(|_| b.clone()),
+                None => repo::default_branch(url),
+            };
+            match branch {
+                Ok(b) => {
+                    let mut cfg = cfg;
+                    let r = config::custom_repo(&cfg, name, url, kind, &b);
+                    out(&format!("Agregado: {} (id {}, rama {b}, {})", r.name, r.id, r.path));
+                    cfg.repos.push(r);
+                    cfg.save();
+                }
+                Err(e) => out(&format!("ERROR: {e}")),
+            }
+        }
         "--detect" => {
             // Lo que el lanzador encuentra en esta PC.
             for (id, dirs) in detect::find_clones(&cfg.repos) {
@@ -102,6 +128,6 @@ fn cli(args: &[String]) {
                 None => out("juego    no encontrado"),
             }
         }
-        _ => out("Uso: --check | --prereq | --env | --detect | --install <xcl|victory|fork|nvidia>"),
+        _ => out("Uso: --check | --prereq | --env | --detect | --install <id>"),
     }
 }

@@ -51,6 +51,8 @@ enum Tab {
     Play,
     Install,
     Settings,
+    /// Agregar un emulador propio (un fork de VIctory o de xcl).
+    Add,
 }
 
 /// Las imágenes del juego, metidas dentro del ejecutable.
@@ -190,6 +192,11 @@ pub struct App {
     show_path: bool,
     /// La ayuda de "¿Dónde está el juego?" en la configuración inicial.
     setup_help: bool,
+    /// El formulario de "Agregar emulador".
+    add_name: String,
+    add_url: String,
+    add_branch: String,
+    add_kind: Kind,
 }
 
 impl App {
@@ -206,9 +213,15 @@ impl App {
         let tab = match std::env::var("LANZADOR_TAB").as_deref() {
             Ok("instalar") => Tab::Install,
             Ok("ajustes") => Tab::Settings,
+            Ok("agregar") => Tab::Add,
             _ => Tab::Play,
         };
-        App { sh, art, tab, sel: 0, card_start: 0, show_log: false, show_path: false, setup_help: false }
+        App { sh, art, tab, sel: 0, card_start: 0, show_log: false, show_path: false, setup_help: false,
+            add_name: String::new(),
+            add_url: String::new(),
+            add_branch: String::new(),
+            add_kind: Kind::Victory,
+        }
     }
 }
 
@@ -583,6 +596,25 @@ impl App {
                         self.tab = Tab::Play;
                     }
                 }
+                // Agregar un emulador propio.
+                let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click());
+                let resp = resp.on_hover_cursor(CursorIcon::PointingHand);
+                let on = self.tab == Tab::Add;
+                let p = ui.painter();
+                if on || resp.hovered() {
+                    p.rect_filled(r, 4.0, SIDE_HOVER);
+                }
+                if on {
+                    p.rect_filled(Rect::from_min_size(r.min, vec2(3.0, r.height())), 1.0, YELLOW);
+                }
+                let ic = Rect::from_min_size(pos2(r.left() + 8.0, r.center().y - 11.0), vec2(22.0, 22.0));
+                p.rect_stroke(ic, 4.0, Stroke::new(1.3, Color32::from_gray(140)), StrokeKind::Inside);
+                p.text(ic.center(), Align2::CENTER_CENTER, "+", FontId::proportional(17.0), Color32::from_gray(220));
+                let color = if on { Color32::WHITE } else { Color32::from_gray(170) };
+                p.text(pos2(ic.right() + 10.0, r.center().y), Align2::LEFT_CENTER, "Agregar emulador", FontId::proportional(13.0), color);
+                if resp.clicked() {
+                    self.tab = Tab::Add;
+                }
                 ui.add_space(18.0);
                 ui.label(RichText::new("Mi biblioteca").size(14.0).color(Color32::WHITE).strong());
                 ui.add_space(4.0);
@@ -930,6 +962,9 @@ impl App {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new(&repo.name).color(TEXT));
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        if repo.custom && small_button(ui, "Quitar") {
+                            self.sh.remove_custom(&repo.id);
+                        }
                         if !repo.owned() && small_button(ui, "Usar copia del lanzador") {
                             self.sh.set_repo_path(&repo.id, None);
                         }
@@ -950,6 +985,59 @@ impl App {
             ui.label(RichText::new("Registros y archivos").strong().color(TEXT));
             self.shortcuts(ui, &cfg);
         });
+    }
+
+    /// El formulario para agregar un emulador propio, y la lista de los agregados.
+    fn add_form(&mut self, ui: &mut Ui) {
+        let busy = lock(&self.sh.job).is_some();
+        card(ui, |ui| {
+            ui.label(RichText::new("Un fork de VIctory o de xcl").strong().color(TEXT));
+            ui.label(muted(
+                "El lanzador lo descarga, lo compila y lo ejecuta igual que el original en el que se basa, así que solo sirve para forks de esos dos proyectos. Antes de agregarlo se comprueba que la dirección exista.",
+            ));
+            ui.add_space(6.0);
+            let w = ui.available_width();
+            ui.label(muted("Nombre"));
+            ui.add(egui::TextEdit::singleline(&mut self.add_name).hint_text("Por ejemplo: VIctory AMD").desired_width(w));
+            ui.label(muted("Dirección de GitHub"));
+            ui.add(egui::TextEdit::singleline(&mut self.add_url).hint_text("https://github.com/dueño/repositorio").desired_width(w));
+            ui.label(muted("Basado en"));
+            ui.horizontal(|ui| {
+                for (k, label) in [(Kind::Victory, "VIctory"), (Kind::Xcl, "xcl")] {
+                    if ui.selectable_label(self.add_kind == k, label).clicked() {
+                        self.add_kind = k;
+                    }
+                }
+            });
+            ui.label(muted("Rama (opcional)"));
+            ui.add(egui::TextEdit::singleline(&mut self.add_branch).hint_text("Vacía: la principal del repositorio").desired_width(w));
+            ui.add_space(8.0);
+            let ready = !self.add_name.trim().is_empty() && !self.add_url.trim().is_empty();
+            let label = if busy { "Comprobando…" } else { "Agregar" };
+            if button(ui, label, Color32::WHITE, Color32::from_gray(14), vec2(160.0, 36.0), ready && !busy).clicked() {
+                self.sh.add_custom(self.add_name.clone(), self.add_url.clone(), self.add_kind, self.add_branch.clone());
+            }
+        });
+        let cfg = self.sh.cfg();
+        let custom: Vec<_> = cfg.repos.iter().filter(|r| r.custom).cloned().collect();
+        if !custom.is_empty() {
+            card(ui, |ui| {
+                ui.label(RichText::new("Agregados por vos").strong().color(TEXT));
+                for r in &custom {
+                    ui.separator();
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(&r.name).color(TEXT));
+                        ui.label(muted(format!("{} · rama {}", r.url, r.branch)));
+                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                            if small_button(ui, "Quitar") {
+                                self.sh.remove_custom(&r.id);
+                            }
+                        });
+                    });
+                }
+                ui.label(muted("Quitar no borra sus archivos: siguen en la carpeta del lanzador (repos)."));
+            });
+        }
     }
 
     fn shortcuts(&mut self, ui: &mut Ui, cfg: &Config) {
@@ -1118,6 +1206,16 @@ impl eframe::App for App {
         }
         let cfg = self.sh.cfg();
         let status = lock(&self.sh.status).clone();
+        // Recién agregado: se lo muestra en el banner, listo para instalar.
+        if let Some(id) = lock(&self.sh.added).take()
+            && let Some(i) = cfg.repos.iter().position(|r| r.id == id)
+        {
+            self.sel = i;
+            self.tab = Tab::Play;
+            self.add_name.clear();
+            self.add_url.clear();
+            self.add_branch.clear();
+        }
         if self.sel >= cfg.repos.len() {
             self.sel = 0;
         }
@@ -1141,6 +1239,7 @@ impl eframe::App for App {
                 Tab::Play => self.hero(ui, body, &cfg, &status),
                 Tab::Install => self.overlay(ui, body, "Instalar", |me, ui| me.install(ui)),
                 Tab::Settings => self.overlay(ui, body, "Ajustes", |me, ui| me.settings(ui)),
+                Tab::Add => self.overlay(ui, body, "Agregar emulador", |me, ui| me.add_form(ui)),
             }
         });
     }

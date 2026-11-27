@@ -41,6 +41,9 @@ pub struct Repo {
     /// La consola que ve el juego con este repositorio, por encima del ajuste común.
     #[serde(default)]
     pub console: Option<String>,
+    /// Lo agregó la persona desde el lanzador (se puede quitar).
+    #[serde(default)]
+    pub custom: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -151,6 +154,7 @@ pub fn nvidia_repo() -> Repo {
         env,
         own_env: true,
         console: Some("series-s".into()),
+        custom: false,
     }
 }
 
@@ -221,6 +225,14 @@ impl Config {
         changed
     }
 
+    /// La carpeta propia del lanzador para un emulador: la de fábrica, o `repos\<id>` si lo agregó la persona.
+    pub fn default_path(&self, id: &str) -> Option<String> {
+        match Self::defaults_repo(id) {
+            Some(r) => Some(r.path),
+            None => self.repo(id).filter(|r| r.custom).map(|_| repos_dir().join(id).to_string_lossy().into_owned()),
+        }
+    }
+
     /// Cómo viene configurado un emulador de fábrica (su carpeta propia del lanzador, etc.).
     pub fn defaults_repo(id: &str) -> Option<Repo> {
         Self::defaults().repos.into_iter().find(|r| r.id == id)
@@ -252,6 +264,7 @@ impl Config {
                     env: Vec::new(),
                     own_env: false,
                     console: None,
+                    custom: false,
                 },
                 Repo {
                     id: "victory".into(),
@@ -268,6 +281,7 @@ impl Config {
                     env: Vec::new(),
                     own_env: false,
                     console: None,
+                    custom: false,
                 },
                 Repo {
                     id: "fork".into(),
@@ -284,6 +298,7 @@ impl Config {
                     env: Vec::new(),
                     own_env: false,
                     console: None,
+                    custom: false,
                 },
                 nvidia_repo(),
             ],
@@ -291,5 +306,80 @@ impl Config {
             built: HashMap::new(),
             setup_done: false,
         }
+    }
+}
+
+/// Un identificador corto y sin espacios a partir del nombre: "VIctory AMD" → "victory-amd".
+fn slug(name: &str) -> String {
+    let mut out = String::new();
+    for c in name.trim().to_lowercase().chars() {
+        if c.is_ascii_alphanumeric() {
+            out.push(c);
+        } else if !out.ends_with('-') {
+            out.push('-');
+        }
+    }
+    let out = out.trim_matches('-').to_string();
+    if out.is_empty() { "emulador".into() } else { out }
+}
+
+/// Un emulador que agrega la persona: un fork de VIctory o de xcl, que se compila y se
+/// ejecuta igual que el original en el que se basa.
+pub fn custom_repo(cfg: &Config, name: &str, url: &str, kind: Kind, branch: &str) -> Repo {
+    let base = slug(name);
+    let mut id = base.clone();
+    let mut n = 2;
+    while cfg.repo(&id).is_some() || Config::defaults_repo(&id).is_some() {
+        id = format!("{base}-{n}");
+        n += 1;
+    }
+    let url = url.trim().trim_end_matches('/').to_string();
+    // "dueño/repo" como nota, para reconocerlo.
+    let parts: Vec<&str> = url.trim_end_matches(".git").rsplit('/').take(2).collect();
+    let note = format!("{}/{}", parts.get(1).unwrap_or(&""), parts.first().unwrap_or(&""));
+    let (exe, build_args): (&str, &[&str]) = match kind {
+        Kind::Victory => ("target/diag/victory.exe", &["build", "--profile", "diag", "-p", "victory", "--features", "diagnostics"]),
+        Kind::Xcl => ("target/release/xcl.exe", &["build", "--release", "--workspace"]),
+    };
+    Repo {
+        path: repos_dir().join(&id).to_string_lossy().into_owned(),
+        id,
+        name: name.trim().to_string(),
+        note: format!("{note} · agregado por vos"),
+        kind,
+        url,
+        remote: "origin".into(),
+        branch: branch.to_string(),
+        exe: exe.into(),
+        target_dir: String::new(),
+        build_args: build_args.iter().map(|s| s.to_string()).collect(),
+        env: Vec::new(),
+        own_env: false,
+        console: None,
+        custom: true,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn slugs() {
+        assert_eq!(slug("VIctory AMD"), "victory-amd");
+        assert_eq!(slug("  Mi  Emulador!! "), "mi-emulador");
+        assert_eq!(slug("¿?"), "emulador");
+    }
+
+    #[test]
+    fn repo_propio() {
+        let cfg = Config::defaults();
+        let r = custom_repo(&cfg, "VIctory", "https://github.com/JoshuuDev/victory-amd/", Kind::Victory, "main");
+        // "victory" ya existe: no se pisa.
+        assert_eq!(r.id, "victory-2");
+        assert_eq!(r.url, "https://github.com/JoshuuDev/victory-amd");
+        assert!(r.note.starts_with("JoshuuDev/victory-amd"));
+        assert_eq!(r.exe, "target/diag/victory.exe");
+        assert!(r.custom && r.path.ends_with("victory-2"));
     }
 }

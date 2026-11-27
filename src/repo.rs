@@ -105,6 +105,39 @@ fn git_cmd(repo: &Repo, args: &[&str]) -> Command {
     c
 }
 
+/// `git ls-remote` sin que git pida usuario y contraseña (ni en la consola ni en una
+/// ventana): un repositorio que no existe o es privado falla enseguida.
+fn ls_remote(url: &str, args: &[&str]) -> Result<String, String> {
+    let mut c = Command::new("git");
+    c.args(["-c", "credential.helper=", "ls-remote"]).args(args).arg(url);
+    c.env("GIT_TERMINAL_PROMPT", "0").env("GCM_INTERACTIVE", "never");
+    let out = sys::quiet(&mut c).output().map_err(|e| format!("No se pudo ejecutar git: {e}"))?;
+    if out.status.success() {
+        Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+    } else {
+        Err("No encontré ese repositorio. Revisá la dirección (tiene que ser público).".into())
+    }
+}
+
+/// La rama principal de un repositorio remoto (la que se descarga por defecto).
+pub fn default_branch(url: &str) -> Result<String, String> {
+    let out = ls_remote(url, &["--symref"])?;
+    out.lines()
+        .find_map(|l| l.strip_prefix("ref: refs/heads/").and_then(|r| r.split_whitespace().next()).map(str::to_string))
+        .ok_or_else(|| "El repositorio está vacío o no tiene rama principal.".into())
+}
+
+/// Que la rama exista en el repositorio remoto.
+pub fn check_branch(url: &str, branch: &str) -> Result<(), String> {
+    let out = ls_remote(url, &["--heads"])?;
+    let want = format!("refs/heads/{branch}");
+    if out.lines().any(|l| l.split_whitespace().nth(1) == Some(want.as_str())) {
+        Ok(())
+    } else {
+        Err(format!("El repositorio no tiene la rama {branch}."))
+    }
+}
+
 /// Que exista el remoto con el nombre que se espera.
 fn ensure_remote(repo: &Repo) {
     let path = Path::new(&repo.path);
@@ -132,7 +165,17 @@ fn build(repo: &Repo, cancel: &AtomicBool, log: Log) -> Result<(), String> {
     }
     log("Compilando… la primera vez tarda varios minutos.".into());
     run(c, cancel, log).map_err(|e| format!("La compilación {e}"))?;
-    if path.join(&repo.exe).exists() { Ok(()) } else { Err("La compilación terminó pero no dejó el ejecutable.".into()) }
+    if path.join(&repo.exe).exists() {
+        Ok(())
+    } else if repo.custom {
+        Err(format!(
+            "La compilación terminó pero no dejó {}. ¿Es un fork de {}? Si el ejecutable quedó en otro lado, cambiá \"exe\" en la configuración.",
+            repo.exe,
+            if repo.kind == Kind::Xcl { "xcl" } else { "VIctory" }
+        ))
+    } else {
+        Err("La compilación terminó pero no dejó el ejecutable.".into())
+    }
 }
 
 /// Instala o actualiza: descarga (o une los cambios nuevos) y compila.
