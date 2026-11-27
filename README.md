@@ -8,7 +8,9 @@ other forks of VIctory or xcl yourself.
 
 No game is included. You need your own copy.
 
-The launcher's interface is in Spanish.
+The interface is available in **English, Spanish, Portuguese, French and Russian**. The
+first time it uses your Windows language (or English if it is another one); you can change
+it in **Settings** or on the initial setup screen.
 
 ## Screenshots
 

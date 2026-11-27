@@ -2,7 +2,8 @@
 //! emuladores, pestañas arriba a la derecha, un gran banner con el botón principal y
 //! tarjetas de novedades, y la barra de tareas abajo.
 
-use crate::config::{Config, Kind, Settings, data_dir};
+use crate::config::{Config, Kind, Repo, Settings, data_dir};
+use crate::i18n::{self, Lang, tr};
 use crate::prereq::PState;
 use crate::repo::{self, Status};
 use crate::state::{Shared, lock};
@@ -190,9 +191,9 @@ pub struct App {
     card_start: usize,
     show_log: bool,
     show_path: bool,
-    /// La ayuda de "¿Dónde está el juego?" en la configuración inicial.
+    /// La ayuda de tr("¿Dónde está el juego?") en la configuración inicial.
     setup_help: bool,
-    /// El formulario de "Agregar emulador".
+    /// El formulario de tr("Agregar emulador").
     add_name: String,
     add_url: String,
     add_branch: String,
@@ -205,6 +206,7 @@ impl App {
         style(&ctx);
         let art = Art::load(&ctx);
         let sh = Shared::new(ctx);
+        i18n::set(i18n::resolve(&sh.cfg().settings.lang));
         sh.refresh();
         // Al abrir, busca actualizaciones de lo que ya está descargado.
         for r in sh.cfg().repos {
@@ -446,19 +448,26 @@ fn link(ui: &mut Ui, pos: Pos2, text: &str, size: f32) -> bool {
     resp.clicked()
 }
 
+/// La nota de un emulador ("versión mejorada (fxceless)"…), en el idioma elegido.
+fn repo_note(r: &Repo) -> String {
+    // Las configuraciones guardadas traen la marca en español: se la quita y se traduce.
+    let base = r.note.trim_end_matches(" · agregado por vos");
+    if r.custom { trf!("{} · agregado por vos", base) } else { tr(base).to_string() }
+}
+
 /// Qué decir del estado de un emulador, y con qué color.
 fn status_line(st: &Status) -> (String, Color32) {
     let ver = st.head_ts.map(repo::when).unwrap_or_default();
     if !st.cloned {
-        ("Todavía no está instalado".into(), MUTED)
+        (tr("Todavía no está instalado").into(), MUTED)
     } else if !st.built {
-        ("Descargado, falta compilarlo".into(), ORANGE)
+        (tr("Descargado, falta compilarlo").into(), ORANGE)
     } else if st.behind > 0 {
-        (format!("Hay {} · tenés la versión de {ver}", repo::cambios(st.behind)), ORANGE)
+        (trf!("Hay {} · tenés la versión de {}", repo::cambios(st.behind), ver), ORANGE)
     } else if st.needs_build {
-        ("Hay cambios descargados sin compilar".into(), ORANGE)
+        (tr("Hay cambios descargados sin compilar").into(), ORANGE)
     } else {
-        (format!("Versión de {ver}"), MUTED)
+        (trf!("Versión de {}", ver), MUTED)
     }
 }
 
@@ -531,6 +540,23 @@ fn row(ui: &mut Ui, state: PState, title: &str, desc: &str, label: &str, enabled
 }
 
 impl App {
+    fn set_lang(&self, lang: Lang) {
+        self.change(|s| s.lang = lang.code().to_string());
+        i18n::set(lang);
+        self.sh.refresh();
+    }
+
+    /// Los idiomas, como botones; el elegido queda marcado.
+    fn lang_picker(&self, ui: &mut Ui) {
+        ui.horizontal_wrapped(|ui| {
+            for l in Lang::ALL {
+                if ui.selectable_label(i18n::current() == l, l.name()).clicked() && i18n::current() != l {
+                    self.set_lang(l);
+                }
+            }
+        });
+    }
+
     fn change(&self, f: impl FnOnce(&mut Settings)) {
         let mut c = lock(&self.sh.cfg);
         f(&mut c.settings);
@@ -540,7 +566,7 @@ impl App {
     fn pick_folder(&self) {
         let sh = self.sh.clone();
         std::thread::spawn(move || {
-            if let Some(dir) = rfd::FileDialog::new().set_title("Elegí la carpeta del juego").pick_folder() {
+            if let Some(dir) = rfd::FileDialog::new().set_title(tr("Elegí la carpeta del juego")).pick_folder() {
                 let mut c = lock(&sh.cfg);
                 c.game_dir = dir.to_string_lossy().into_owned();
                 c.save();
@@ -588,7 +614,7 @@ impl App {
                 self.art.paint_app_logo(ui.painter(), r);
                 ui.add_space(30.0);
 
-                ui.label(RichText::new("Disponibles").size(14.0).color(Color32::WHITE).strong());
+                ui.label(RichText::new(tr("Disponibles")).size(14.0).color(Color32::WHITE).strong());
                 ui.add_space(4.0);
                 for (i, repo) in cfg.repos.iter().enumerate() {
                     if self.side_item(ui, i, &repo.name, "disp") {
@@ -611,12 +637,12 @@ impl App {
                 p.rect_stroke(ic, 4.0, Stroke::new(1.3, Color32::from_gray(140)), StrokeKind::Inside);
                 p.text(ic.center(), Align2::CENTER_CENTER, "+", FontId::proportional(17.0), Color32::from_gray(220));
                 let color = if on { Color32::WHITE } else { Color32::from_gray(170) };
-                p.text(pos2(ic.right() + 10.0, r.center().y), Align2::LEFT_CENTER, "Agregar emulador", FontId::proportional(13.0), color);
+                p.text(pos2(ic.right() + 10.0, r.center().y), Align2::LEFT_CENTER, tr("Agregar emulador"), FontId::proportional(13.0), color);
                 if resp.clicked() {
                     self.tab = Tab::Add;
                 }
                 ui.add_space(18.0);
-                ui.label(RichText::new("Mi biblioteca").size(14.0).color(Color32::WHITE).strong());
+                ui.label(RichText::new(tr("Mi biblioteca")).size(14.0).color(Color32::WHITE).strong());
                 ui.add_space(4.0);
                 let mut any = false;
                 for (i, repo) in cfg.repos.iter().enumerate() {
@@ -630,20 +656,20 @@ impl App {
                     }
                 }
                 if !any {
-                    ui.label(RichText::new("Nada instalado todavía").small().color(DIM));
+                    ui.label(RichText::new(tr("Nada instalado todavía")).small().color(DIM));
                 }
 
                 // Abajo: el estado de los requisitos.
                 ui.with_layout(Layout::bottom_up(Align::LEFT), |ui| {
                     let (text, color) = if prereqs.is_empty() {
-                        ("Revisando requisitos…", MUTED)
+                        (tr("Revisando requisitos…"), MUTED)
                     } else if prereqs.iter().all(|p| p.state == PState::Ok) && App::game_found(cfg) {
-                        ("Todo listo para jugar", GREEN)
+                        (tr("Todo listo para jugar"), GREEN)
                     } else {
-                        ("Faltan requisitos", ORANGE)
+                        (tr("Faltan requisitos"), ORANGE)
                     };
                     let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click());
-                    let resp = resp.on_hover_cursor(CursorIcon::PointingHand).on_hover_text("Abrir la pestaña Instalar");
+                    let resp = resp.on_hover_cursor(CursorIcon::PointingHand).on_hover_text(tr("Abrir la pestaña Instalar"));
                     let p = ui.painter();
                     if resp.hovered() {
                         p.rect_filled(r, 4.0, SIDE_HOVER);
@@ -664,7 +690,7 @@ impl App {
         // El círculo de la derecha abre la carpeta de datos.
         let c = pos2(area.right() - 38.0, y);
         let cr = Rect::from_center_size(c, vec2(32.0, 32.0));
-        let resp = ui.interact(cr, ui.scope_id().with("perfil"), Sense::click()).on_hover_cursor(CursorIcon::PointingHand).on_hover_text("Carpeta de datos");
+        let resp = ui.interact(cr, ui.scope_id().with("perfil"), Sense::click()).on_hover_cursor(CursorIcon::PointingHand).on_hover_text(tr("Carpeta de datos"));
         let p = ui.painter();
         p.circle_filled(c, 16.0, if resp.hovered() { Color32::from_gray(235) } else { Color32::from_gray(205) });
         p.circle_filled(c + vec2(0.0, -4.0), 5.0, Color32::from_gray(120));
@@ -674,7 +700,7 @@ impl App {
             sys::open_folder(&data_dir());
         }
         let mut x = cr.left() - 30.0;
-        for (tab, label) in [(Tab::Settings, "AJUSTES"), (Tab::Install, "INSTALAR"), (Tab::Play, "JUEGO")] {
+        for (tab, label) in [(Tab::Settings, tr("AJUSTES")), (Tab::Install, tr("INSTALAR")), (Tab::Play, tr("JUEGO"))] {
             let galley = ui.painter().layout_no_wrap(label.to_string(), FontId::proportional(15.0), TEXT);
             let r = Rect::from_min_size(pos2(x - galley.size().x, y - galley.size().y / 2.0), galley.size()).expand(6.0);
             let resp = ui.interact(r, ui.scope_id().with(("nav", label)), Sense::click()).on_hover_cursor(CursorIcon::PointingHand);
@@ -697,7 +723,7 @@ impl App {
 
     fn hero(&mut self, ui: &mut Ui, body: Rect, cfg: &Config, status: &HashMap<String, Status>) {
         let Some(repo) = cfg.repos.get(self.sel).cloned() else {
-            ui.painter().text(body.center(), Align2::CENTER_CENTER, "No hay emuladores configurados", FontId::proportional(18.0), TEXT);
+            ui.painter().text(body.center(), Align2::CENTER_CENTER, tr("No hay emuladores configurados"), FontId::proportional(18.0), TEXT);
             return;
         };
         let st = status.get(&repo.id).cloned().unwrap_or_default();
@@ -721,7 +747,7 @@ impl App {
             let r = Rect::from_min_size(pos2(x - 4.0, y), vec2(h * logo.aspect_ratio(), h));
             p.image(logo.id(), r, FULL, Color32::WHITE);
             y = r.bottom() + 12.0;
-            let t = bold(&p, pos2(x, y), Align2::LEFT_TOP, &format!("con {}", repo.name), 20.0, Color32::WHITE);
+            let t = bold(&p, pos2(x, y), Align2::LEFT_TOP, &trf!("con {}", repo.name), 20.0, Color32::WHITE);
             p.rect_filled(Rect::from_min_size(pos2(x, t.bottom() + 4.0), vec2(t.width(), 3.0)), 1.5, a0);
             y = t.bottom() + 12.0;
         } else {
@@ -732,17 +758,17 @@ impl App {
             p.text(pos2(x + 2.5, y + 2.5), Align2::LEFT_TOP, &repo.name, FontId::proportional(size), a0);
             y = bold(&p, pos2(x, y), Align2::LEFT_TOP, &repo.name, size, Color32::WHITE).bottom() + 8.0;
         }
-        p.text(pos2(x, y), Align2::LEFT_TOP, clip(&repo.note, 52), FontId::proportional(14.0), Color32::from_white_alpha(215));
+        p.text(pos2(x, y), Align2::LEFT_TOP, clip(&repo_note(&repo), 52), FontId::proportional(14.0), Color32::from_white_alpha(215));
         y += 30.0;
 
         // Botón principal.
         let main = Rect::from_min_size(pos2(x, y), vec2(230.0, 52.0));
         let (label, enabled) = if !installed {
-            (if st.cloned { "COMPILAR E INSTALAR" } else { "INSTALAR" }, !busy)
+            (if st.cloned { tr("COMPILAR E INSTALAR") } else { tr("INSTALAR") }, !busy)
         } else if running {
-            ("DETENER", true)
+            (tr("DETENER"), true)
         } else {
-            ("JUGAR", !busy && !other_running)
+            (tr("JUGAR"), !busy && !other_running)
         };
         if big_button(ui, main, label, enabled).clicked() {
             if !installed {
@@ -755,31 +781,36 @@ impl App {
         }
         // Botón secundario a la derecha.
         let side = Rect::from_min_size(pos2(main.right() + 14.0, main.center().y - 19.0), vec2(200.0, 38.0));
+        // El botón crece con el texto: en otros idiomas puede ser más largo.
+        let fit = |text: &str| {
+            let w = p.layout_no_wrap(text.to_string(), FontId::proportional(12.0), Color32::WHITE).size().x;
+            Rect::from_min_size(side.min, vec2((w + 48.0).max(side.width()), side.height()))
+        };
         if running {
-            bold(&p, pos2(side.left(), side.center().y), Align2::LEFT_CENTER, "EN EJECUCIÓN", 13.0, GREEN);
+            bold(&p, pos2(side.left(), side.center().y), Align2::LEFT_CENTER, tr("EN EJECUCIÓN"), 13.0, GREEN);
         } else if installed {
             if updates {
-                if pill(ui, side, "ACTUALIZAR", true, !busy).clicked() {
+                if pill(ui, fit(tr("ACTUALIZAR")), tr("ACTUALIZAR"), true, !busy).clicked() {
                     sh.install_repo(&repo.id);
                 }
             } else {
-                let label = if checking { "BUSCANDO…" } else { "BUSCAR ACTUALIZACIÓN" };
-                if pill(ui, side, label, false, !busy && !checking).clicked() {
+                let label = if checking { tr("BUSCANDO…") } else { tr("BUSCAR ACTUALIZACIÓN") };
+                if pill(ui, fit(label), label, false, !busy && !checking).clicked() {
                     sh.check_updates(&repo.id);
                 }
             }
         }
         y = main.bottom() + 14.0;
-        if link(ui, pos2(x + 26.0, y), "¿Problemas al instalar?  ›", 13.0) {
+        if link(ui, pos2(x + 26.0, y), tr("¿Problemas al instalar?  ›"), 13.0) {
             self.tab = Tab::Install;
         }
         y += 34.0;
         // Si ya tenía este emulador en otra carpeta, se puede usar esa en vez de descargarlo.
         let found = lock(&sh.found).get(&repo.id).and_then(|d| d.first().cloned());
         if !installed && let Some(dir) = found {
-            p.text(pos2(x, y), Align2::LEFT_TOP, format!("Ya tenés una copia en {}", clip(&dir.to_string_lossy(), 44)), FontId::proportional(13.0), Color32::WHITE);
+            p.text(pos2(x, y), Align2::LEFT_TOP, trf!("Ya tenés una copia en {}", clip(&dir.to_string_lossy(), 44)), FontId::proportional(13.0), Color32::WHITE);
             y += 24.0;
-            if pill(ui, Rect::from_min_size(pos2(x, y), vec2(170.0, 32.0)), "USAR ESA COPIA", true, !busy).clicked() {
+            if pill(ui, Rect::from_min_size(pos2(x, y), vec2((p.layout_no_wrap(tr("USAR ESA COPIA").to_string(), FontId::proportional(12.0), Color32::WHITE).size().x + 48.0).max(170.0), 32.0)), tr("USAR ESA COPIA"), true, !busy).clicked() {
                 sh.set_repo_path(&repo.id, Some(dir));
             }
             y += 46.0;
@@ -794,7 +825,7 @@ impl App {
             y += 17.0;
         }
         if st.new_commits.len() > 3 {
-            p.text(pos2(x, y), Align2::LEFT_TOP, format!("… y {} más", st.new_commits.len() - 3), FontId::proportional(12.0), MUTED);
+            p.text(pos2(x, y), Align2::LEFT_TOP, trf!("… y {} más", st.new_commits.len() - 3), FontId::proportional(12.0), MUTED);
             y += 17.0;
         }
         if let Some(e) = exit {
@@ -804,12 +835,12 @@ impl App {
         if repo.kind == Kind::Victory {
             let text = if repo.own_env {
                 let console = if repo.console.as_deref() == Some("series-x") { "Series X" } else { "Series S" };
-                format!("Ajustes propios: {console} a media resolución, para NVIDIA")
+                trf!("Ajustes propios: {} a media resolución, para NVIDIA", console)
             } else if cfg.settings.safe_mode {
-                "Modo seguro activado (se cambia en Ajustes)".to_string()
+                tr("Modo seguro activado (se cambia en Ajustes)").to_string()
             } else {
                 let console = if cfg.settings.console == "series-x" { "Series X" } else { "Series S" };
-                format!("Consola: {console} (se cambia en Ajustes)")
+                trf!("Consola: {} (se cambia en Ajustes)", console)
             };
             p.text(pos2(x, y), Align2::LEFT_TOP, text, FontId::proportional(12.0), Color32::from_gray(185));
         }
@@ -852,11 +883,11 @@ impl App {
             p.rect_filled(Rect::from_min_size(img.min, vec2(img.width(), 3.0)), 0.0, a0);
             let installed = st.cloned && st.built;
             let (badge, bcol) = if !installed {
-                ("NO INSTALADO", Color32::from_gray(60))
+                (tr("NO INSTALADO"), Color32::from_gray(60))
             } else if st.behind > 0 || st.needs_build {
-                ("NUEVA VERSIÓN", ORANGE)
+                (tr("NUEVA VERSIÓN"), ORANGE)
             } else {
-                ("INSTALADO", GREEN)
+                (tr("INSTALADO"), GREEN)
             };
             let g = p.layout_no_wrap(badge.to_string(), FontId::proportional(10.0), Color32::WHITE);
             let br = Rect::from_min_size(pos2(img.left() + 12.0, img.bottom() - 28.0), g.size() + vec2(14.0, 8.0));
@@ -908,70 +939,74 @@ impl App {
         let found = App::game_found(cfg);
         card(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(muted("CARPETA DEL JUEGO"));
+                ui.label(muted(tr("CARPETA DEL JUEGO")));
                 dot(ui, if found { GREEN } else { RED });
-                let (text, color) = if found { ("Juego encontrado", GREEN) } else { ("No se encontró el juego", RED) };
+                let (text, color) = if found { (tr("Juego encontrado"), GREEN) } else { (tr("No se encontró el juego"), RED) };
                 ui.label(RichText::new(text).small().color(color));
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if small_button(ui, "Cambiar carpeta…") {
+                    if small_button(ui, tr("Cambiar carpeta…")) {
                         self.pick_folder();
                     }
-                    if small_button(ui, if self.show_path { "Ocultar" } else { "Mostrar" }) {
+                    if small_button(ui, if self.show_path { tr("Ocultar") } else { tr("Mostrar") }) {
                         self.show_path = !self.show_path;
                     }
                 });
             });
             if self.show_path {
-                ui.label(muted(if cfg.game_dir.is_empty() { "(sin elegir)".to_string() } else { cfg.game_dir.clone() }));
+                ui.label(muted(if cfg.game_dir.is_empty() { tr("(sin elegir)").to_string() } else { cfg.game_dir.clone() }));
             }
         });
     }
 
     fn settings(&mut self, ui: &mut Ui) {
         let cfg = self.sh.cfg();
+        card(ui, |ui| {
+            ui.label(RichText::new(tr("Idioma")).strong().color(TEXT));
+            self.lang_picker(ui);
+        });
         self.folder_row(ui, &cfg);
         card(ui, |ui| {
-            ui.label(RichText::new("Opciones de juego").strong().color(TEXT));
+            ui.label(RichText::new(tr("Opciones de juego")).strong().color(TEXT));
             ui.horizontal(|ui| {
-                ui.label(muted("Consola que ve el juego:"));
-                for (value, label) in [("series-s", "Series S (menos memoria)"), ("series-x", "Series X")] {
+                ui.label(muted(tr("Consola que ve el juego:")));
+                for (value, label) in [("series-s", tr("Series S (menos memoria)")), ("series-x", "Series X")] {
                     if ui.selectable_label(cfg.settings.console == value, label).clicked() {
                         self.change(|s| s.console = value.to_string());
                     }
                 }
             });
             let mut enter = cfg.settings.auto_enter;
-            if ui.checkbox(&mut enter, RichText::new("Pulsar Enter solo para pasar las pantallas iniciales").small().color(TEXT)).changed() {
+            if ui.checkbox(&mut enter, RichText::new(tr("Pulsar Enter solo para pasar las pantallas iniciales")).small().color(TEXT)).changed() {
                 self.change(|s| s.auto_enter = enter);
             }
             let mut safe = cfg.settings.safe_mode;
-            if ui.checkbox(&mut safe, RichText::new("Modo seguro · más lento, gasta menos memoria").small().color(ORANGE)).changed() {
+            if ui.checkbox(&mut safe, RichText::new(tr("Modo seguro · más lento, gasta menos memoria")).small().color(ORANGE)).changed() {
                 self.change(|s| s.safe_mode = safe);
             }
             ui.label(muted(
-                "La consola y el modo seguro valen para VIctory y su fork. VIctory NVIDIA usa siempre sus ajustes propios; xcl no los usa.",
+                tr("La consola y el modo seguro valen para VIctory y su fork. VIctory NVIDIA usa siempre sus ajustes propios; xcl no los usa."),
             ));
         });
         card(ui, |ui| {
-            ui.label(RichText::new("Dónde está cada emulador").strong().color(TEXT));
+            ui.label(RichText::new(tr("Dónde está cada emulador")).strong().color(TEXT));
             ui.label(muted(
-                "Por defecto el lanzador descarga su propia copia. Si ya tenés uno, elegí su carpeta: al actualizar se unen los cambios nuevos con los tuyos.",
+                tr("Por defecto el lanzador descarga su propia copia. Si ya tenés uno, elegí su carpeta: al actualizar se unen los cambios nuevos con los tuyos."),
             ));
             for repo in &cfg.repos {
                 ui.separator();
                 ui.horizontal(|ui| {
                     ui.label(RichText::new(&repo.name).color(TEXT));
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if repo.custom && small_button(ui, "Quitar") {
+                        if repo.custom && small_button(ui, tr("Quitar")) {
                             self.sh.remove_custom(&repo.id);
                         }
-                        if !repo.owned() && small_button(ui, "Usar copia del lanzador") {
+                        if !repo.owned() && small_button(ui, tr("Usar copia del lanzador")) {
                             self.sh.set_repo_path(&repo.id, None);
                         }
-                        if small_button(ui, "Elegir carpeta…") {
+                        if small_button(ui, tr("Elegir carpeta…")) {
                             let (sh, id) = (self.sh.clone(), repo.id.clone());
                             std::thread::spawn(move || {
-                                if let Some(dir) = rfd::FileDialog::new().set_title("Elegí la carpeta del emulador").pick_folder() {
+                                if let Some(dir) = rfd::FileDialog::new().set_title(tr("Elegí la carpeta del emulador")).pick_folder() {
                                     sh.set_repo_path(&id, Some(dir));
                                 }
                             });
@@ -982,7 +1017,7 @@ impl App {
             }
         });
         card(ui, |ui| {
-            ui.label(RichText::new("Registros y archivos").strong().color(TEXT));
+            ui.label(RichText::new(tr("Registros y archivos")).strong().color(TEXT));
             self.shortcuts(ui, &cfg);
         });
     }
@@ -991,17 +1026,17 @@ impl App {
     fn add_form(&mut self, ui: &mut Ui) {
         let busy = lock(&self.sh.job).is_some();
         card(ui, |ui| {
-            ui.label(RichText::new("Un fork de VIctory o de xcl").strong().color(TEXT));
+            ui.label(RichText::new(tr("Un fork de VIctory o de xcl")).strong().color(TEXT));
             ui.label(muted(
-                "El lanzador lo descarga, lo compila y lo ejecuta igual que el original en el que se basa, así que solo sirve para forks de esos dos proyectos. Antes de agregarlo se comprueba que la dirección exista.",
+                tr("El lanzador lo descarga, lo compila y lo ejecuta igual que el original en el que se basa, así que solo sirve para forks de esos dos proyectos. Antes de agregarlo se comprueba que la dirección exista."),
             ));
             ui.add_space(6.0);
             let w = ui.available_width();
-            ui.label(muted("Nombre"));
-            ui.add(egui::TextEdit::singleline(&mut self.add_name).hint_text("Por ejemplo: VIctory AMD").desired_width(w));
-            ui.label(muted("Dirección de GitHub"));
+            ui.label(muted(tr("Nombre")));
+            ui.add(egui::TextEdit::singleline(&mut self.add_name).hint_text(tr("Por ejemplo: VIctory AMD")).desired_width(w));
+            ui.label(muted(tr("Dirección de GitHub")));
             ui.add(egui::TextEdit::singleline(&mut self.add_url).hint_text("https://github.com/dueño/repositorio").desired_width(w));
-            ui.label(muted("Basado en"));
+            ui.label(muted(tr("Basado en")));
             ui.horizontal(|ui| {
                 for (k, label) in [(Kind::Victory, "VIctory"), (Kind::Xcl, "xcl")] {
                     if ui.selectable_label(self.add_kind == k, label).clicked() {
@@ -1009,11 +1044,11 @@ impl App {
                     }
                 }
             });
-            ui.label(muted("Rama (opcional)"));
-            ui.add(egui::TextEdit::singleline(&mut self.add_branch).hint_text("Vacía: la principal del repositorio").desired_width(w));
+            ui.label(muted(tr("Rama (opcional)")));
+            ui.add(egui::TextEdit::singleline(&mut self.add_branch).hint_text(tr("Vacía: la principal del repositorio")).desired_width(w));
             ui.add_space(8.0);
             let ready = !self.add_name.trim().is_empty() && !self.add_url.trim().is_empty();
-            let label = if busy { "Comprobando…" } else { "Agregar" };
+            let label = if busy { tr("Comprobando…") } else { tr("Agregar") };
             if button(ui, label, Color32::WHITE, Color32::from_gray(14), vec2(160.0, 36.0), ready && !busy).clicked() {
                 self.sh.add_custom(self.add_name.clone(), self.add_url.clone(), self.add_kind, self.add_branch.clone());
             }
@@ -1022,20 +1057,20 @@ impl App {
         let custom: Vec<_> = cfg.repos.iter().filter(|r| r.custom).cloned().collect();
         if !custom.is_empty() {
             card(ui, |ui| {
-                ui.label(RichText::new("Agregados por vos").strong().color(TEXT));
+                ui.label(RichText::new(tr("Agregados por vos")).strong().color(TEXT));
                 for r in &custom {
                     ui.separator();
                     ui.horizontal(|ui| {
                         ui.label(RichText::new(&r.name).color(TEXT));
-                        ui.label(muted(format!("{} · rama {}", r.url, r.branch)));
+                        ui.label(muted(trf!("{} · rama {}", r.url, r.branch)));
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                            if small_button(ui, "Quitar") {
+                            if small_button(ui, tr("Quitar")) {
                                 self.sh.remove_custom(&r.id);
                             }
                         });
                     });
                 }
-                ui.label(muted("Quitar no borra sus archivos: siguen en la carpeta del lanzador (repos)."));
+                ui.label(muted(tr("Quitar no borra sus archivos: siguen en la carpeta del lanzador (repos).")));
             });
         }
     }
@@ -1043,34 +1078,34 @@ impl App {
     fn shortcuts(&mut self, ui: &mut Ui, cfg: &Config) {
         ui.horizontal_wrapped(|ui| {
             for repo in &cfg.repos {
-                if small_button(ui, &format!("Registro {}", repo.name)) {
+                if small_button(ui, &trf!("Registro {}", repo.name)) {
                     let f = repo::log_file(repo);
                     if f.exists() {
                         sys::open_text(&f);
                     } else {
-                        self.sh.say(format!("{} todavía no se ejecutó: no hay registro.", repo.name), true);
+                        self.sh.say(trf!("{} todavía no se ejecutó: no hay registro.", repo.name), true);
                     }
                 }
             }
-            if small_button(ui, "Errores VIctory") {
+            if small_button(ui, tr("Errores VIctory")) {
                 match repo::newest_victory_crash_log() {
                     Some(f) => sys::open_text(&f),
-                    None => self.sh.say("VIctory todavía no registró errores.", false),
+                    None => self.sh.say(tr("VIctory todavía no registró errores."), false),
                 }
             }
-            if small_button(ui, "Carpeta") {
+            if small_button(ui, tr("Carpeta")) {
                 let _ = std::fs::create_dir_all(data_dir());
                 sys::open_folder(&data_dir());
             }
-            if small_button(ui, "Configuración") {
+            if small_button(ui, tr("Configuración")) {
                 sys::open_text(&Config::file());
             }
-            if small_button(ui, "Configuración inicial") {
+            if small_button(ui, tr("Configuración inicial")) {
                 let mut c = lock(&self.sh.cfg);
                 c.setup_done = false;
                 c.save();
             }
-            if small_button(ui, "Imágenes") {
+            if small_button(ui, tr("Imágenes")) {
                 let _ = std::fs::create_dir_all(images_dir());
                 sys::open_folder(&images_dir());
             }
@@ -1088,9 +1123,9 @@ impl App {
             for p in &prereqs {
                 all_ok &= p.state == PState::Ok;
                 let label = match p.state {
-                    PState::Ok => "Listo",
-                    PState::Warn => "Arreglar",
-                    PState::Missing => "Instalar",
+                    PState::Ok => tr("Listo"),
+                    PState::Warn => tr("Arreglar"),
+                    PState::Missing => tr("Instalar"),
                 };
                 if row(ui, p.state, p.name, &p.desc, label, !busy && p.state != PState::Ok) {
                     sh.install_prereq(p.id);
@@ -1101,11 +1136,11 @@ impl App {
                 let st = status.get(&repo.id).cloned().unwrap_or_default();
                 let installed = st.cloned && st.built;
                 let (state, label, desc) = if !installed {
-                    (PState::Missing, "Instalar", "Todavía no está instalado".to_string())
+                    (PState::Missing, tr("Instalar"), tr("Todavía no está instalado").to_string())
                 } else if st.behind > 0 || st.needs_build {
-                    (PState::Warn, "Actualizar", format!("Hay cambios nuevos · versión de {}", st.head_ts.map(repo::when).unwrap_or_default()))
+                    (PState::Warn, tr("Actualizar"), trf!("Hay cambios nuevos · versión de {}", st.head_ts.map(repo::when).unwrap_or_default()))
                 } else {
-                    (PState::Ok, "Listo", format!("Versión de {}", st.head_ts.map(repo::when).unwrap_or_default()))
+                    (PState::Ok, tr("Listo"), trf!("Versión de {}", st.head_ts.map(repo::when).unwrap_or_default()))
                 };
                 all_ok &= state == PState::Ok;
                 if row(ui, state, &repo.name, &desc, label, !busy && state != PState::Ok) {
@@ -1114,8 +1149,8 @@ impl App {
                 for dir in lock(&sh.found).get(&repo.id).cloned().unwrap_or_default() {
                     ui.horizontal(|ui| {
                         ui.add_space(36.0);
-                        ui.label(muted(format!("Encontré otra copia en {}", dir.display())));
-                        if small_button(ui, "Usar esta") {
+                        ui.label(muted(trf!("Encontré otra copia en {}", dir.display())));
+                        if small_button(ui, tr("Usar esta")) {
                             sh.set_repo_path(&repo.id, Some(dir.clone()));
                         }
                     });
@@ -1124,12 +1159,12 @@ impl App {
             }
             let found = App::game_found(&cfg);
             all_ok &= found;
-            let desc = if cfg.game_dir.is_empty() { "Sin elegir".to_string() } else { cfg.game_dir.clone() };
-            if row(ui, if found { PState::Ok } else { PState::Missing }, "Carpeta del juego", &desc, "Cambiar", true) {
+            let desc = if cfg.game_dir.is_empty() { tr("Sin elegir").to_string() } else { cfg.game_dir.clone() };
+            if row(ui, if found { PState::Ok } else { PState::Missing }, tr("Carpeta del juego"), &desc, tr("Cambiar"), true) {
                 self.pick_folder();
             }
         });
-        let (text, color) = if all_ok { ("Todo instalado", GREEN) } else { ("Faltan cosas por instalar o actualizar", ORANGE) };
+        let (text, color) = if all_ok { (tr("Todo instalado"), GREEN) } else { (tr("Faltan cosas por instalar o actualizar"), ORANGE) };
         Frame::new().stroke(Stroke::new(1.0, color)).corner_radius(8).inner_margin(Margin::same(12)).show(ui, |ui| {
             ui.set_width(ui.available_width());
             ui.vertical_centered(|ui| ui.label(RichText::new(text).strong().color(color)));
@@ -1152,9 +1187,9 @@ impl App {
             let (l1, l2, c2) = match &job {
                 Some((title, _)) => (title.to_uppercase(), clip(&last, 90), Color32::from_gray(225)),
                 None if !msg.is_empty() => {
-                    ((if is_err { "AVISO" } else { "LISTO" }).to_string(), clip(&msg, 110), if is_err { Color32::from_rgb(255, 170, 170) } else { Color32::from_gray(225) })
+                    ((if is_err { tr("AVISO") } else { tr("LISTO") }).to_string(), clip(&msg, 110), if is_err { Color32::from_rgb(255, 170, 170) } else { Color32::from_gray(225) })
                 }
-                None => ("SIN TAREAS".to_string(), "Elegí un emulador a la izquierda y pulsá Jugar".to_string(), Color32::from_gray(200)),
+                None => (tr("SIN TAREAS").to_string(), tr("Elegí un emulador a la izquierda y pulsá Jugar").to_string(), Color32::from_gray(200)),
             };
             bold(&p, pos2(left.left() + 22.0, left.top() + 22.0), Align2::LEFT_CENTER, &l1, 13.0, Color32::WHITE);
             p.text(pos2(left.left() + 22.0, left.top() + 43.0), Align2::LEFT_CENTER, l2, FontId::proportional(12.0), c2);
@@ -1164,17 +1199,17 @@ impl App {
             let (bw, bh, gap) = (112.0, 38.0, 12.0);
             let b2 = Rect::from_min_size(pos2(rect.right() - 22.0 - bw, rect.center().y - bh / 2.0), vec2(bw, bh));
             let b1 = b2.translate(vec2(-(bw + gap), 0.0));
-            if pill(ui, b1, if self.show_log { "OCULTAR" } else { "REGISTRO" }, true, true).clicked() {
+            if pill(ui, b1, if self.show_log { tr("OCULTAR") } else { tr("REGISTRO") }, true, true).clicked() {
                 self.show_log = !self.show_log;
             }
             match &job {
                 Some((_, cancel)) => {
-                    if pill(ui, b2, "CANCELAR", false, true).clicked() {
+                    if pill(ui, b2, tr("CANCELAR"), false, true).clicked() {
                         cancel.store(true, Ordering::Relaxed);
                     }
                 }
                 None => {
-                    if pill(ui, b2, "REVISAR", false, true).on_hover_text("Volver a revisar requisitos y actualizaciones").clicked() {
+                    if pill(ui, b2, tr("REVISAR"), false, true).on_hover_text(tr("Volver a revisar requisitos y actualizaciones")).clicked() {
                         self.sh.refresh();
                         for r in &self.sh.cfg().repos {
                             self.sh.check_updates(&r.id);
@@ -1237,9 +1272,9 @@ impl eframe::App for App {
             let body = Rect::from_min_max(pos2(area.left(), area.top() + 64.0), area.max);
             match self.tab {
                 Tab::Play => self.hero(ui, body, &cfg, &status),
-                Tab::Install => self.overlay(ui, body, "Instalar", |me, ui| me.install(ui)),
-                Tab::Settings => self.overlay(ui, body, "Ajustes", |me, ui| me.settings(ui)),
-                Tab::Add => self.overlay(ui, body, "Agregar emulador", |me, ui| me.add_form(ui)),
+                Tab::Install => self.overlay(ui, body, tr("Instalar"), |me, ui| me.install(ui)),
+                Tab::Settings => self.overlay(ui, body, tr("Ajustes"), |me, ui| me.settings(ui)),
+                Tab::Add => self.overlay(ui, body, tr("Agregar emulador"), |me, ui| me.add_form(ui)),
             }
         });
     }

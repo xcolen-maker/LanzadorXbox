@@ -1,6 +1,7 @@
 //! Los repositorios: estado, búsqueda de actualizaciones, instalación y ejecución.
 
 use crate::config::{Config, Kind, Repo, Settings, log_dir};
+use crate::i18n::tr;
 use crate::sys;
 use chrono::{Local, TimeZone};
 use std::fs::File;
@@ -57,30 +58,30 @@ pub fn status(cfg: &Config, repo: &Repo) -> Status {
     st
 }
 
-/// "1 cambio nuevo" / "3 cambios nuevos".
+/// tr("1 cambio nuevo") / "3 cambios nuevos".
 pub fn cambios(n: u32) -> String {
-    if n == 1 { "1 cambio nuevo".into() } else { format!("{n} cambios nuevos") }
+    if n == 1 { tr("1 cambio nuevo").into() } else { trf!("{} cambios nuevos", n) }
 }
 
 /// "hoy, 02:58", "ayer, 21:57" o la fecha.
 pub fn when(ts: i64) -> String {
     let Some(dt) = Local.timestamp_opt(ts, 0).single() else {
-        return "fecha desconocida".into();
+        return tr("fecha desconocida").into();
     };
     let today = Local::now().date_naive();
     let day = dt.date_naive();
     if day == today {
-        format!("hoy, {}", dt.format("%H:%M"))
+        trf!("hoy, {}", dt.format("%H:%M"))
     } else if day == today.pred_opt().unwrap_or(today) {
-        format!("ayer, {}", dt.format("%H:%M"))
+        trf!("ayer, {}", dt.format("%H:%M"))
     } else {
         dt.format("%d/%m/%Y, %H:%M").to_string()
     }
 }
 
 fn run(mut cmd: Command, cancel: &AtomicBool, log: Log) -> Result<(), String> {
-    let code = sys::run_stream(cmd_clone(&mut cmd), cancel, &mut |l| log(l)).map_err(|e| format!("No se pudo ejecutar: {e}"))?;
-    if code == 0 { Ok(()) } else { Err(format!("terminó con error (código {code})")) }
+    let code = sys::run_stream(cmd_clone(&mut cmd), cancel, &mut |l| log(l)).map_err(|e| trf!("No se pudo ejecutar: {}", e))?;
+    if code == 0 { Ok(()) } else { Err(trf!("terminó con error (código {})", code)) }
 }
 
 fn cmd_clone(c: &mut Command) -> Command {
@@ -111,11 +112,11 @@ fn ls_remote(url: &str, args: &[&str]) -> Result<String, String> {
     let mut c = Command::new("git");
     c.args(["-c", "credential.helper=", "ls-remote"]).args(args).arg(url);
     c.env("GIT_TERMINAL_PROMPT", "0").env("GCM_INTERACTIVE", "never");
-    let out = sys::quiet(&mut c).output().map_err(|e| format!("No se pudo ejecutar git: {e}"))?;
+    let out = sys::quiet(&mut c).output().map_err(|e| trf!("No se pudo ejecutar git: {}", e))?;
     if out.status.success() {
         Ok(String::from_utf8_lossy(&out.stdout).into_owned())
     } else {
-        Err("No encontré ese repositorio. Revisá la dirección (tiene que ser público).".into())
+        Err(tr("No encontré ese repositorio. Revisá la dirección (tiene que ser público).").into())
     }
 }
 
@@ -124,7 +125,7 @@ pub fn default_branch(url: &str) -> Result<String, String> {
     let out = ls_remote(url, &["--symref"])?;
     out.lines()
         .find_map(|l| l.strip_prefix("ref: refs/heads/").and_then(|r| r.split_whitespace().next()).map(str::to_string))
-        .ok_or_else(|| "El repositorio está vacío o no tiene rama principal.".into())
+        .ok_or_else(|| tr("El repositorio está vacío o no tiene rama principal.").into())
 }
 
 /// Que la rama exista en el repositorio remoto.
@@ -134,7 +135,7 @@ pub fn check_branch(url: &str, branch: &str) -> Result<(), String> {
     if out.lines().any(|l| l.split_whitespace().nth(1) == Some(want.as_str())) {
         Ok(())
     } else {
-        Err(format!("El repositorio no tiene la rama {branch}."))
+        Err(trf!("El repositorio no tiene la rama {}.", branch))
     }
 }
 
@@ -163,18 +164,18 @@ fn build(repo: &Repo, cancel: &AtomicBool, log: Log) -> Result<(), String> {
     if !repo.target_dir.is_empty() {
         c.env("CARGO_TARGET_DIR", path.join(&repo.target_dir));
     }
-    log("Compilando… la primera vez tarda varios minutos.".into());
-    run(c, cancel, log).map_err(|e| format!("La compilación {e}"))?;
+    log(tr("Compilando… la primera vez tarda varios minutos.").into());
+    run(c, cancel, log).map_err(|e| trf!("La compilación {}", e))?;
     if path.join(&repo.exe).exists() {
         Ok(())
     } else if repo.custom {
-        Err(format!(
+        Err(trf!(
             "La compilación terminó pero no dejó {}. ¿Es un fork de {}? Si el ejecutable quedó en otro lado, cambiá \"exe\" en la configuración.",
             repo.exe,
             if repo.kind == Kind::Xcl { "xcl" } else { "VIctory" }
         ))
     } else {
-        Err("La compilación terminó pero no dejó el ejecutable.".into())
+        Err(tr("La compilación terminó pero no dejó el ejecutable.").into())
     }
 }
 
@@ -183,34 +184,34 @@ fn build(repo: &Repo, cancel: &AtomicBool, log: Log) -> Result<(), String> {
 pub fn install(repo: &Repo, cancel: &AtomicBool, log: Log) -> Result<String, String> {
     let path = Path::new(&repo.path);
     if !is_cloned(repo) {
-        log(format!("Descargando {} desde {} …", repo.name, repo.url));
-        let parent = path.parent().ok_or("carpeta inválida")?;
-        std::fs::create_dir_all(parent).map_err(|e| format!("No se pudo crear la carpeta: {e}"))?;
+        log(trf!("Descargando {} desde {} …", repo.name, repo.url));
+        let parent = path.parent().ok_or(tr("carpeta inválida"))?;
+        std::fs::create_dir_all(parent).map_err(|e| trf!("No se pudo crear la carpeta: {}", e))?;
         let mut c = Command::new("git");
         c.args(["clone", "--origin", &repo.remote, &repo.url]).arg(path).current_dir(parent);
-        run(c, cancel, log).map_err(|e| format!("La descarga {e}"))?;
+        run(c, cancel, log).map_err(|e| trf!("La descarga {}", e))?;
     } else if repo.owned() {
         // Una copia del lanzador: nadie trabaja en ella, así que se la deja
         // exactamente como el remoto. Sin unir nada, no hay con qué chocar
         // (ni con cambios a medias de una actualización cortada).
-        log("Buscando cambios nuevos…".into());
+        log(tr("Buscando cambios nuevos…").into());
         fetch(repo, cancel, log)?;
         let upstream = format!("{}/{}", repo.remote, repo.branch);
-        log(format!("Pasando a la última versión de {upstream} …"));
+        log(trf!("Pasando a la última versión de {} …", upstream));
         // `--force -B`: la rama queda en el remoto y se descarta lo que hubiera.
         run(git_cmd(repo, &["checkout", "--force", "-B", &repo.branch, &upstream]), cancel, log)
-            .map_err(|e| format!("No se pudo pasar a la versión nueva: {e}"))?;
+            .map_err(|e| trf!("No se pudo pasar a la versión nueva: {}", e))?;
     } else {
         // Una carpeta de trabajo del usuario: se unen los cambios, sin pisar los suyos.
-        log("Buscando cambios nuevos…".into());
+        log(tr("Buscando cambios nuevos…").into());
         fetch(repo, cancel, log)?;
         let upstream = format!("{}/{}", repo.remote, repo.branch);
-        log(format!("Uniendo los cambios de {upstream} …"));
+        log(trf!("Uniendo los cambios de {} …", upstream));
         if run(git_cmd(repo, &["merge", "--no-edit", &upstream]), cancel, log).is_err() {
             let files = git(path, &["diff", "--name-only", "--diff-filter=U"]).unwrap_or_default();
             let _ = git(path, &["merge", "--abort"]);
             let list: Vec<&str> = files.lines().take(8).collect();
-            return Err(format!(
+            return Err(trf!(
                 "Los cambios nuevos chocan con los tuyos en {} archivo(s): {}. No se tocó nada. Esta carpeta ({}) tiene cambios propios; para que el lanzador la actualice solo, usá una copia en su carpeta (repos).",
                 files.lines().count(),
                 list.join(", "),
@@ -298,13 +299,13 @@ pub fn launch(cfg: &Config, repo: &Repo) -> Result<Child, String> {
     let path = Path::new(&repo.path);
     let exe = path.join(&repo.exe);
     if !exe.exists() {
-        return Err(format!("{} todavía no está compilado: usá Instalar.", repo.name));
+        return Err(trf!("{} todavía no está compilado: usá Instalar.", repo.name));
     }
     let game_dir = Path::new(&cfg.game_dir);
     let mut c = Command::new(&exe);
     match repo.kind {
         Kind::Victory => {
-            let game = find_game_exe(game_dir).ok_or("No encuentro el juego en la carpeta elegida (falta game_scarlett_master.exe).")?;
+            let game = find_game_exe(game_dir).ok_or(tr("No encuentro el juego en la carpeta elegida (falta game_scarlett_master.exe)."))?;
             let console = repo.console.as_deref().unwrap_or(&cfg.settings.console);
             c.arg("run").arg("--console").arg(console).arg(game).arg("--execute");
             // Ningún ajuste que quede en el entorno del lanzador se cuela.
@@ -319,7 +320,7 @@ pub fn launch(cfg: &Config, repo: &Repo) -> Result<Child, String> {
         }
         Kind::Xcl => {
             if !game_dir.join("MicrosoftGame.Config").exists() && !game_dir.join("MicrosoftGame.config").exists() {
-                return Err("No encuentro el juego en la carpeta elegida.".into());
+                return Err(tr("No encuentro el juego en la carpeta elegida.").into());
             }
             c.arg("run").arg(game_dir);
         }
@@ -327,10 +328,10 @@ pub fn launch(cfg: &Config, repo: &Repo) -> Result<Child, String> {
     c.current_dir(path);
     let log = log_file(repo);
     let _ = std::fs::create_dir_all(log_dir());
-    let f = File::create(&log).map_err(|e| format!("No se pudo crear el registro: {e}"))?;
+    let f = File::create(&log).map_err(|e| trf!("No se pudo crear el registro: {}", e))?;
     c.stdout(f.try_clone().map_err(|e| e.to_string())?).stderr(f).stdin(Stdio::null());
     sys::quiet(&mut c);
-    c.spawn().map_err(|e| format!("No se pudo iniciar {}: {e}", repo.name))
+    c.spawn().map_err(|e| trf!("No se pudo iniciar {}: {}", repo.name, e))
 }
 
 /// El registro de errores más reciente de VIctory.

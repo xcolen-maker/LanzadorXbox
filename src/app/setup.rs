@@ -2,6 +2,7 @@
 //! A la izquierda un panel de tubos de neón dibujado; a la derecha el formulario.
 
 use super::*;
+use crate::i18n::tr;
 
 const PANEL: Color32 = Color32::from_rgb(22, 22, 25);
 const FIELD: Color32 = Color32::from_rgb(27, 27, 31);
@@ -78,7 +79,7 @@ fn field(ui: &mut Ui, label: &str, value: Option<&str>, placeholder: &str, can_r
     let mut reset = false;
     if can_reset {
         let rr = Rect::from_center_size(pos2(r.right() - 56.0, r.center().y), vec2(24.0, 24.0));
-        let rresp = ui.interact(rr, ui.scope_id().with(("reset", label)), Sense::click()).on_hover_text("Volver a la copia del lanzador");
+        let rresp = ui.interact(rr, ui.scope_id().with(("reset", label)), Sense::click()).on_hover_text(tr("Volver a la copia del lanzador"));
         reset = rresp.clicked();
         let col = if rresp.hovered() { Color32::WHITE } else { Color32::from_gray(150) };
         ui.painter().text(rr.center(), Align2::CENTER_CENTER, "×", FontId::proportional(20.0), col);
@@ -89,7 +90,7 @@ fn field(ui: &mut Ui, label: &str, value: Option<&str>, placeholder: &str, can_r
     p.rect_stroke(r, 4.0, Stroke::new(1.0, line), StrokeKind::Inside);
     let mut tx = r.left() + 16.0;
     if !label.is_empty() {
-        p.text(pos2(tx, r.center().y), Align2::LEFT_CENTER, label, FontId::proportional(15.0), Color32::from_gray(200));
+        p.text(pos2(tx, r.center().y), Align2::LEFT_CENTER, clip(label, 15), FontId::proportional(15.0), Color32::from_gray(200));
         tx += 138.0;
     }
     let room = ((r.right() - 80.0 - tx) / 7.6).max(10.0) as usize;
@@ -125,7 +126,7 @@ impl App {
     fn pick_repo_folder(&self, id: &str) {
         let (sh, id) = (self.sh.clone(), id.to_string());
         std::thread::spawn(move || {
-            if let Some(dir) = rfd::FileDialog::new().set_title("Elegí la carpeta del emulador").pick_folder() {
+            if let Some(dir) = rfd::FileDialog::new().set_title(tr("Elegí la carpeta del emulador")).pick_folder() {
                 sh.set_repo_path(&id, Some(dir));
             }
             sh.ctx.request_repaint();
@@ -155,12 +156,12 @@ impl App {
             let logo = Rect::from_min_size(pos2(x0, area.top() + 42.0), vec2(44.0, 44.0));
             self.art.paint_app_logo(&p, logo);
             bold(&p, pos2(logo.right() + 20.0, logo.top() - 2.0), Align2::LEFT_TOP, "Lanzador Xbox", 13.0, Color32::WHITE);
-            p.text(pos2(logo.right() + 18.0, logo.top() + 16.0), Align2::LEFT_TOP, "Configuración inicial", FontId::proportional(32.0), Color32::WHITE);
+            p.text(pos2(logo.right() + 18.0, logo.top() + 16.0), Align2::LEFT_TOP, tr("Configuración inicial"), FontId::proportional(32.0), Color32::WHITE);
 
             // A la derecha: el engranaje (carpeta de datos) y un atajo para saltear.
             let gear = pos2(x1 - 160.0, area.top() + 66.0);
             let gr = Rect::from_center_size(gear, vec2(42.0, 42.0));
-            let gresp = ui.interact(gr, ui.scope_id().with("engranaje"), Sense::click()).on_hover_cursor(CursorIcon::PointingHand).on_hover_text("Carpeta de datos");
+            let gresp = ui.interact(gr, ui.scope_id().with("engranaje"), Sense::click()).on_hover_cursor(CursorIcon::PointingHand).on_hover_text(tr("Carpeta de datos"));
             p.circle_stroke(gear, 21.0, Stroke::new(1.2, if gresp.hovered() { Color32::WHITE } else { Color32::from_gray(120) }));
             p.text(gear, Align2::CENTER_CENTER, "⚙", FontId::proportional(20.0), Color32::from_gray(200));
             if gresp.clicked() {
@@ -169,15 +170,15 @@ impl App {
             }
             let tag = Rect::from_min_max(pos2(gr.right() + 12.0, gr.top() + 4.0), pos2(x1, gr.bottom() - 4.0));
             p.rect_stroke(tag, 18.0, Stroke::new(1.6, YELLOW), StrokeKind::Inside);
-            bold(&p, tag.center(), Align2::CENTER_CENTER, "Primera vez", 15.0, YELLOW);
-            let q = "¿Ya lo tenés todo?";
+            bold(&p, tag.center(), Align2::CENTER_CENTER, tr("Primera vez"), 15.0, YELLOW);
+            let q = tr("¿Ya lo tenés todo?");
             let qg = p.layout_no_wrap(q.to_string(), FontId::proportional(13.0), Color32::WHITE);
             let ly = gr.bottom() + 12.0;
-            let skip_w = p.layout_no_wrap("Saltear este paso".into(), FontId::proportional(13.0), ORANGE_LINK).size().x;
+            let skip_w = p.layout_no_wrap(tr("Saltear este paso").into(), FontId::proportional(13.0), ORANGE_LINK).size().x;
             p.text(pos2(x1 - skip_w - 6.0 - qg.size().x, ly), Align2::LEFT_TOP, q, FontId::proportional(13.0), Color32::WHITE);
             let skip = Rect::from_min_size(pos2(x1 - skip_w, ly), vec2(skip_w, 16.0));
             let sresp = ui.interact(skip, ui.scope_id().with("saltear"), Sense::click()).on_hover_cursor(CursorIcon::PointingHand);
-            p.text(skip.min, Align2::LEFT_TOP, "Saltear este paso", FontId::proportional(13.0), if sresp.hovered() { Color32::WHITE } else { ORANGE_LINK });
+            p.text(skip.min, Align2::LEFT_TOP, tr("Saltear este paso"), FontId::proportional(13.0), if sresp.hovered() { Color32::WHITE } else { ORANGE_LINK });
             if sresp.clicked() {
                 self.finish_setup();
             }
@@ -192,23 +193,23 @@ impl App {
                     ui.spacing_mut().item_spacing.y = 10.0;
                     ui.set_width(ui.available_width() - 10.0);
                     let game = (!cfg.game_dir.is_empty()).then_some(cfg.game_dir.as_str());
-                    if field(ui, "", game, "Carpeta del juego", false).0 {
+                    if field(ui, "", game, tr("Carpeta del juego"), false).0 {
                         self.pick_folder();
                     }
                     let (text, color) = if game_ok {
-                        ("Juego encontrado en esta carpeta", GREEN)
+                        (tr("Juego encontrado en esta carpeta"), GREEN)
                     } else if cfg.game_dir.is_empty() {
-                        ("Elegí la carpeta donde está game_scarlett_master.exe", Color32::from_gray(170))
+                        (tr("Elegí la carpeta donde está game_scarlett_master.exe"), Color32::from_gray(170))
                     } else {
-                        ("En esta carpeta no está el juego (falta el .exe que termina en _master.exe)", ORANGE)
+                        (tr("En esta carpeta no está el juego (falta el .exe que termina en _master.exe)"), ORANGE)
                     };
                     ui.label(RichText::new(text).size(13.0).color(color));
                     ui.add_space(8.0);
-                    ui.label(RichText::new("Emuladores").size(15.0).color(Color32::WHITE).strong());
-                    ui.label(RichText::new("Si ya tenés alguno descargado, elegí su carpeta. Si no, dejalo así: el lanzador lo descarga y lo compila solo.").size(12.5).color(Color32::from_gray(150)));
+                    ui.label(RichText::new(tr("Emuladores")).size(15.0).color(Color32::WHITE).strong());
+                    ui.label(RichText::new(tr("Si ya tenés alguno descargado, elegí su carpeta. Si no, dejalo así: el lanzador lo descarga y lo compila solo.")).size(12.5).color(Color32::from_gray(150)));
                     for repo in &cfg.repos {
                         let custom = !repo.owned();
-                        let (pick, reset) = field(ui, &repo.name, custom.then_some(repo.path.as_str()), "Lo descarga el lanzador", custom);
+                        let (pick, reset) = field(ui, &repo.name, custom.then_some(repo.path.as_str()), tr("Lo descarga el lanzador"), custom);
                         if pick && !busy {
                             self.pick_repo_folder(&repo.id);
                         }
@@ -217,8 +218,8 @@ impl App {
                         }
                         if !custom && let Some(dir) = found.get(&repo.id).and_then(|d| d.first()) {
                             ui.horizontal(|ui| {
-                                ui.label(RichText::new(format!("Encontré una copia en {}", dir.display())).size(12.5).color(Color32::from_gray(170)));
-                                let l = ui.add(egui::Label::new(RichText::new("Usar esa").size(12.5).color(ORANGE_LINK)).sense(Sense::click()));
+                                ui.label(RichText::new(trf!("Encontré una copia en {}", dir.display())).size(12.5).color(Color32::from_gray(170)));
+                                let l = ui.add(egui::Label::new(RichText::new(tr("Usar esa")).size(12.5).color(ORANGE_LINK)).sense(Sense::click()));
                                 if l.on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                     self.sh.set_repo_path(&repo.id, Some(dir.clone()));
                                 }
@@ -227,15 +228,15 @@ impl App {
                     }
                     ui.add_space(6.0);
                     ui.horizontal(|ui| {
-                        if check(ui, cfg.settings.safe_mode, "Modo seguro") {
+                        if check(ui, cfg.settings.safe_mode, tr("Modo seguro")) {
                             self.change(|s| s.safe_mode = !s.safe_mode);
                         }
                         ui.add_space(14.0);
-                        if check(ui, cfg.settings.auto_enter, "Pasar solo las pantallas iniciales") {
+                        if check(ui, cfg.settings.auto_enter, tr("Pasar solo las pantallas iniciales")) {
                             self.change(|s| s.auto_enter = !s.auto_enter);
                         }
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                            let l = ui.add(egui::Label::new(RichText::new("¿Dónde está el juego?").size(14.0).color(ORANGE_LINK)).sense(Sense::click()));
+                            let l = ui.add(egui::Label::new(RichText::new(tr("¿Dónde está el juego?")).size(14.0).color(ORANGE_LINK)).sense(Sense::click()));
                             if l.on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                 self.setup_help = !self.setup_help;
                             }
@@ -244,8 +245,7 @@ impl App {
                     if self.setup_help {
                         ui.label(
                             RichText::new(
-                                "Es la carpeta con game_scarlett_master.exe. Si lo instalaste con la app de Xbox suele ser C:\\XboxGames\\<juego>\\Content. \
-                                 El lanzador busca en Escritorio, Documentos, Descargas y las carpetas Games, Juegos y XboxGames de cada disco.",
+                                tr("Es la carpeta con game_scarlett_master.exe. Si lo instalaste con la app de Xbox suele ser C:\\XboxGames\\<juego>\\Content. El lanzador busca en Escritorio, Documentos, Descargas y las carpetas Games, Juegos y XboxGames de cada disco."),
                             )
                             .size(12.5)
                             .color(Color32::from_gray(170)),
@@ -259,28 +259,40 @@ impl App {
             // Alineados con el borde derecho del formulario.
             let go = Rect::from_min_size(pos2(form.right() - 10.0 - bw, area.bottom() - 100.0), vec2(bw, bh));
             let back = go.translate(vec2(-(bw + 12.0), 0.0));
-            if pill(ui, back, "BUSCAR", false, true).on_hover_text("Volver a buscar el juego y los emuladores").clicked() {
+            if pill(ui, back, tr("BUSCAR"), false, true).on_hover_text(tr("Volver a buscar el juego y los emuladores")).clicked() {
                 self.sh.refresh();
             }
             let resp = ui.interact(go, ui.scope_id().with("continuar"), if game_ok { Sense::click() } else { Sense::hover() });
             let fill = if !game_ok { Color32::from_gray(235) } else if resp.hovered() { Color32::from_gray(222) } else { Color32::WHITE };
             p.rect_filled(go, bh / 2.0, fill);
-            bold(&p, go.center(), Align2::CENTER_CENTER, "CONTINUAR", 13.0, if game_ok { Color32::from_gray(14) } else { Color32::from_gray(160) });
+            bold(&p, go.center(), Align2::CENTER_CENTER, tr("CONTINUAR"), 13.0, if game_ok { Color32::from_gray(14) } else { Color32::from_gray(160) });
             if game_ok {
                 resp.on_hover_cursor(CursorIcon::PointingHand).clicked().then(|| self.finish_setup());
             } else {
-                resp.on_hover_text("Primero elegí la carpeta del juego");
+                resp.on_hover_text(tr("Primero elegí la carpeta del juego"));
             }
 
-            // Pie de página.
+            // Pie de página, con el idioma a la derecha.
             let fy = area.bottom() - 26.0;
+            ui.scope_builder(UiBuilder::new().max_rect(Rect::from_min_max(pos2(x1 - 420.0, fy - 14.0), pos2(x1, fy + 14.0))), |ui| {
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    egui::ComboBox::from_id_salt("idioma").selected_text(i18n::current().name()).show_ui(ui, |ui| {
+                        for l in Lang::ALL {
+                            if ui.selectable_label(i18n::current() == l, l.name()).clicked() && i18n::current() != l {
+                                self.set_lang(l);
+                            }
+                        }
+                    });
+                    ui.label(RichText::new(tr("Idioma")).size(12.0).color(Color32::from_gray(150)));
+                });
+            });
             let mut fx = x0;
             let small = FontId::proportional(10.5);
             let year = chrono::Local::now().format("%Y").to_string();
             let mut items: Vec<(String, Option<PathBuf>)> = vec![(format!("© {year} LANZADOR XBOX"), None)];
-            items.push(("CARPETA DE DATOS".into(), Some(data_dir())));
-            items.push(("IMÁGENES".into(), Some(images_dir())));
-            items.push(("REGISTROS".into(), Some(crate::config::log_dir())));
+            items.push((tr("CARPETA DE DATOS").into(), Some(data_dir())));
+            items.push((tr("IMÁGENES").into(), Some(images_dir())));
+            items.push((tr("REGISTROS").into(), Some(crate::config::log_dir())));
             for (k, (text, dir)) in items.into_iter().enumerate() {
                 if k > 0 {
                     p.text(pos2(fx, fy), Align2::LEFT_CENTER, "|", small.clone(), Color32::from_gray(80));

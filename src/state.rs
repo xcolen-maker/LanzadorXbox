@@ -2,6 +2,7 @@
 
 use crate::config::{self, Config, Kind};
 use crate::detect;
+use crate::i18n::tr;
 use crate::prereq::{self, Prereq};
 use crate::repo::{self, Status};
 use eframe::egui;
@@ -101,8 +102,8 @@ impl Shared {
                 && let Some(dir) = detect::find_game_dir()
             {
                 let text = dir.to_string_lossy().into_owned();
-                me.log(format!("Encontré el juego en {text}"));
-                me.say(format!("Encontré el juego en {text}"), false);
+                me.log(trf!("Encontré el juego en {}", text));
+                me.say(trf!("Encontré el juego en {}", text), false);
                 let mut c = lock(&me.cfg);
                 c.game_dir = text;
                 c.save();
@@ -115,7 +116,7 @@ impl Shared {
     /// `None` vuelve a la copia propia del lanzador.
     pub fn set_repo_path(self: &Arc<Self>, id: &str, path: Option<PathBuf>) {
         if lock(&self.running).contains_key(id) {
-            self.say("Cerrá el juego antes de cambiar la carpeta del emulador.", true);
+            self.say(tr("Cerrá el juego antes de cambiar la carpeta del emulador."), true);
             return;
         }
         let Some(default) = lock(&self.cfg).default_path(id) else { return };
@@ -127,7 +128,7 @@ impl Shared {
             c.built.remove(id);
             c.save();
             drop(c);
-            self.say(format!("{name} ahora usa {shown}"), false);
+            self.say(trf!("{} ahora usa {}", name, shown), false);
         }
         self.refresh();
     }
@@ -135,19 +136,19 @@ impl Shared {
     /// Agrega un emulador (un fork de VIctory o de xcl). Antes comprueba que la dirección
     /// exista y averigua su rama principal, sin descargar nada todavía.
     pub fn add_custom(self: &Arc<Self>, name: String, url: String, kind: Kind, branch: String) {
-        self.start_job(format!("Agregando {}", name.trim()), move |sh, _cancel| {
+        self.start_job(trf!("Agregando {}", name.trim()), move |sh, _cancel| {
             let url = url.trim().trim_end_matches('/').to_string();
             if name.trim().is_empty() {
-                return Err("Poné un nombre para el emulador.".into());
+                return Err(tr("Poné un nombre para el emulador.").into());
             }
             if !(url.starts_with("https://") || url.starts_with("http://")) || url.matches('/').count() < 4 {
-                return Err("La dirección tiene que ser como https://github.com/dueño/repositorio".into());
+                return Err(tr("La dirección tiene que ser como https://github.com/dueño/repositorio").into());
             }
             let norm = detect::norm_url(&url);
             if let Some(r) = sh.cfg().repos.iter().find(|r| detect::norm_url(&r.url) == norm) {
-                return Err(format!("Ese repositorio ya está en el lanzador, como {}.", r.name));
+                return Err(trf!("Ese repositorio ya está en el lanzador, como {}.", r.name));
             }
-            sh.log(format!("Comprobando {url} …"));
+            sh.log(trf!("Comprobando {} …", url));
             let branch = match branch.trim() {
                 "" => repo::default_branch(&url)?,
                 b => {
@@ -162,14 +163,14 @@ impl Shared {
             c.save();
             drop(c);
             *lock(&sh.added) = Some(id);
-            Ok(format!("{shown} se agregó (rama {branch}). Ahora podés instalarlo."))
+            Ok(trf!("{} se agregó (rama {}). Ahora podés instalarlo.", shown, branch))
         });
     }
 
     /// Quita un emulador agregado por la persona. No borra su carpeta.
     pub fn remove_custom(self: &Arc<Self>, id: &str) {
         if lock(&self.running).contains_key(id) {
-            self.say("Cerrá el juego antes de quitar el emulador.", true);
+            self.say(tr("Cerrá el juego antes de quitar el emulador."), true);
             return;
         }
         let mut c = lock(&self.cfg);
@@ -178,7 +179,7 @@ impl Shared {
         c.built.remove(id);
         c.save();
         drop(c);
-        self.say(format!("Se quitó {} del lanzador. Sus archivos siguen en {}", r.name, r.path), false);
+        self.say(trf!("Se quitó {} del lanzador. Sus archivos siguen en {}", r.name, r.path), false);
         self.refresh();
     }
 
@@ -193,7 +194,7 @@ impl Shared {
             let mut j = lock(&self.job);
             if j.is_some() {
                 drop(j);
-                self.say("Ya hay una tarea en curso.", true);
+                self.say(tr("Ya hay una tarea en curso."), true);
                 return;
             }
             *j = Some(Job { title: title.clone(), cancel: cancel.clone() });
@@ -222,23 +223,23 @@ impl Shared {
         let Some(name) = self.cfg().repo(&id).map(|r| r.name.clone()) else { return };
         // Windows no deja reemplazar un ejecutable en uso: la compilación fallaría al final.
         if lock(&self.running).contains_key(&id) {
-            self.say(format!("Cerrá el juego antes de actualizar {name}: no se puede reemplazar mientras está abierto."), true);
+            self.say(trf!("Cerrá el juego antes de actualizar {}: no se puede reemplazar mientras está abierto.", name), true);
             return;
         }
-        self.start_job(format!("Instalando {name}"), move |sh, cancel| {
+        self.start_job(trf!("Instalando {}", name), move |sh, cancel| {
             let cfg = sh.cfg();
-            let repo = cfg.repo(&id).ok_or("repositorio desconocido")?.clone();
+            let repo = cfg.repo(&id).ok_or(tr("repositorio desconocido"))?.clone();
             let head = repo::install(&repo, cancel, &|l| sh.log(l))?;
             let mut c = lock(&sh.cfg);
             c.built.insert(id.clone(), head);
             c.save();
-            Ok(format!("{} quedó instalado y compilado.", repo.name))
+            Ok(trf!("{} quedó instalado y compilado.", repo.name))
         });
     }
 
     /// Instala o arregla un requisito.
     pub fn install_prereq(self: &Arc<Self>, id: &'static str) {
-        self.start_job(format!("Instalando {id}"), move |sh, cancel| prereq::install(id, cancel, &|l| sh.log(l)));
+        self.start_job(trf!("Instalando {}", id), move |sh, cancel| prereq::install(id, cancel, &|l| sh.log(l)));
     }
 
     /// Busca actualizaciones de un repositorio (rápido, en segundo plano).
@@ -257,12 +258,12 @@ impl Shared {
                         let st = repo::status(&cfg, repo);
                         lock(&me.status).insert(id.clone(), st.clone());
                         if st.behind > 0 {
-                            me.say(format!("{}: hay {}.", repo.name, repo::cambios(st.behind)), false);
+                            me.say(trf!("{}: hay {}.", repo.name, repo::cambios(st.behind)), false);
                         } else {
-                            me.say(format!("{}: ya tenés lo último.", repo.name), false);
+                            me.say(trf!("{}: ya tenés lo último.", repo.name), false);
                         }
                     }
-                    Err(e) => me.say(format!("{}: no se pudo buscar ({e}). ¿Hay internet?", repo.name), true),
+                    Err(e) => me.say(trf!("{}: no se pudo buscar ({}). ¿Hay internet?", repo.name, e), true),
                 }
             }
             lock(&me.checking).remove(&id);
@@ -273,7 +274,7 @@ impl Shared {
     /// Inicia el juego con este emulador.
     pub fn launch(self: &Arc<Self>, id: &str) {
         if !lock(&self.running).is_empty() {
-            self.say("Ya hay un juego en ejecución.", true);
+            self.say(tr("Ya hay un juego en ejecución."), true);
             return;
         }
         let cfg = self.cfg();
@@ -282,7 +283,7 @@ impl Shared {
             Ok(child) => {
                 lock(&self.exits).remove(id);
                 lock(&self.running).insert(id.to_string(), Running { child, since: Instant::now() });
-                self.say(format!("{} iniciado. Su registro: {}", repo.name, repo::log_file(repo).display()), false);
+                self.say(trf!("{} iniciado. Su registro: {}", repo.name, repo::log_file(repo).display()), false);
             }
             Err(e) => self.say(e, true),
         }
@@ -304,9 +305,9 @@ impl Shared {
                     let code = status.code().unwrap_or(-1);
                     let secs = r.since.elapsed().as_secs();
                     let text = if code == 0 {
-                        format!("Terminó bien ({secs} s).")
+                        trf!("Terminó bien ({} s).", secs)
                     } else {
-                        format!("Terminó con código {:#x} después de {secs} s. Mirá el registro.", code as u32)
+                        trf!("Terminó con código {} después de {} s. Mirá el registro.", format!("{:#x}", code as u32), secs)
                     };
                     done.push((id.clone(), text));
                 }

@@ -1,6 +1,9 @@
 // En la versión final no se abre una ventana de consola.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+// Primero: define `trf!`, que usan los demás módulos.
+#[macro_use]
+mod i18n;
 mod app;
 mod config;
 mod detect;

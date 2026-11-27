@@ -3,7 +3,7 @@
 ; Se instala para el usuario, sin pedir permisos de administrador.
 
 #define AppName "Lanzador Xbox"
-#define AppVersion "0.2.0"
+#define AppVersion "0.3.0"
 #define AppExe "Lanzador-Xbox.exe"
 
 [Setup]

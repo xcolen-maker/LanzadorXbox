@@ -54,6 +54,9 @@ pub struct Settings {
     pub safe_mode: bool,
     /// Pulsar Enter solo cada pocos segundos para pasar las pantallas iniciales.
     pub auto_enter: bool,
+    /// Idioma de la interfaz ("es", "en", "pt", "fr", "ru"); vacío = el de Windows.
+    #[serde(default)]
+    pub lang: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -302,7 +305,7 @@ impl Config {
                 },
                 nvidia_repo(),
             ],
-            settings: Settings { console: "series-s".into(), safe_mode: true, auto_enter: true },
+            settings: Settings { console: "series-s".into(), safe_mode: true, auto_enter: true, lang: String::new() },
             built: HashMap::new(),
             setup_done: false,
         }

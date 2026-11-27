@@ -1,5 +1,6 @@
 //! Lo que piden los emuladores: herramientas, componentes de Windows y memoria.
 
+use crate::i18n::tr;
 use crate::sys;
 use std::path::Path;
 use std::process::Command;
@@ -26,8 +27,8 @@ const VSWHERE: &str = r"C:\Program Files (x86)\Microsoft Visual Studio\Installer
 fn git() -> Prereq {
     let v = sys::capture("git", &["--version"], None);
     let desc = match &v {
-        Some(v) => format!("Para bajar el código de los proyectos · {}", v.trim_start_matches("git version ")),
-        None => "Para bajar el código de los proyectos".into(),
+        Some(v) => trf!("Para bajar el código de los proyectos · {}", v.trim_start_matches("git version ")),
+        None => tr("Para bajar el código de los proyectos").into(),
     };
     Prereq { id: "git", name: "Git", desc, state: if v.is_some() { PState::Ok } else { PState::Missing } }
 }
@@ -35,8 +36,8 @@ fn git() -> Prereq {
 fn rust() -> Prereq {
     let v = sys::capture(&sys::cargo_path(), &["--version"], None);
     let desc = match &v {
-        Some(v) => format!("El lenguaje con el que están hechos · {}", v.trim_start_matches("cargo ")),
-        None => "El lenguaje con el que están hechos".into(),
+        Some(v) => trf!("El lenguaje con el que están hechos · {}", v.trim_start_matches("cargo ")),
+        None => tr("El lenguaje con el que están hechos").into(),
     };
     Prereq { id: "rust", name: "Rust", desc, state: if v.is_some() { PState::Ok } else { PState::Missing } }
 }
@@ -65,8 +66,8 @@ fn msvc() -> Prereq {
     };
     Prereq {
         id: "msvc",
-        name: "Compilador de C++ y Windows SDK",
-        desc: format!("Visual Studio Build Tools · tarda unos minutos{extra}"),
+        name: tr("Compilador de C++ y Windows SDK"),
+        desc: trf!("Visual Studio Build Tools · tarda unos minutos{}", tr(extra)),
         state,
     }
 }
@@ -77,7 +78,7 @@ fn gaming_services() -> Prereq {
     Prereq {
         id: "xgameruntime",
         name: "Gaming Services (XGameRuntime)",
-        desc: "Lo piden xcl y los juegos de Xbox · viene de la Microsoft Store".into(),
+        desc: tr("Lo piden xcl y los juegos de Xbox · viene de la Microsoft Store").into(),
         state: if found { PState::Ok } else { PState::Missing },
     }
 }
@@ -87,11 +88,11 @@ fn memory() -> Prereq {
     let gb = |mb: u64| mb as f64 / 1024.0;
     Prereq {
         id: "memory",
-        name: "Memoria virtual de Windows",
-        desc: format!(
-            "Tenés {:.0} GB de RAM y un límite de {:.0} GB · se recomienda 32 GB o más",
-            gb(phys),
-            gb(commit)
+        name: tr("Memoria virtual de Windows"),
+        desc: trf!(
+            "Tenés {} GB de RAM y un límite de {} GB · se recomienda 32 GB o más",
+            format!("{:.0}", gb(phys)),
+            format!("{:.0}", gb(commit))
         ),
         state: if commit >= 32 * 1024 { PState::Ok } else { PState::Warn },
     }
@@ -104,12 +105,12 @@ pub fn check_all() -> Vec<Prereq> {
 fn winget(extra: &[&str], cancel: &AtomicBool, log: &dyn Fn(String)) -> Result<String, String> {
     let mut c = Command::new("winget");
     c.arg("install").arg("-e").args(extra).args(["--accept-package-agreements", "--accept-source-agreements"]);
-    log("Se va a abrir una ventana de Windows pidiendo permiso para instalar.".into());
-    let code = sys::run_stream(c, cancel, &mut |l| log(l)).map_err(|e| format!("No se pudo ejecutar winget: {e}"))?;
+    log(tr("Se va a abrir una ventana de Windows pidiendo permiso para instalar.").into());
+    let code = sys::run_stream(c, cancel, &mut |l| log(l)).map_err(|e| trf!("No se pudo ejecutar winget: {}", e))?;
     if code == 0 {
-        Ok("Instalado. Cerrá y volvé a abrir el lanzador para que lo detecte.".into())
+        Ok(tr("Instalado. Cerrá y volvé a abrir el lanzador para que lo detecte.").into())
     } else {
-        Err(format!("winget terminó con error (código {code}). Si Windows Update o la tienda están bloqueados, instalalo a mano."))
+        Err(trf!("winget terminó con error (código {}). Si Windows Update o la tienda están bloqueados, instalalo a mano.", code))
     }
 }
 
@@ -130,12 +131,12 @@ pub fn install(id: &str, cancel: &AtomicBool, log: &dyn Fn(String)) -> Result<St
         ),
         "xgameruntime" => {
             sys::open_uri("ms-windows-store://pdp/?ProductId=9MWPM2CQNLHN");
-            Ok("Se abrió la Microsoft Store en Gaming Services: instalalo desde ahí.".into())
+            Ok(tr("Se abrió la Microsoft Store en Gaming Services: instalalo desde ahí.").into())
         }
         "memory" => {
             let _ = Command::new("SystemPropertiesAdvanced.exe").spawn();
-            Ok("Rendimiento → Configuración → Opciones avanzadas → Memoria virtual → Cambiar. Poné un tamaño fijo de 32768 MB o más y reiniciá.".into())
+            Ok(tr("Rendimiento → Configuración → Opciones avanzadas → Memoria virtual → Cambiar. Poné un tamaño fijo de 32768 MB o más y reiniciá.").into())
         }
-        _ => Err("Requisito desconocido.".into()),
+        _ => Err(tr("Requisito desconocido.").into()),
     }
 }
