@@ -207,10 +207,40 @@ footer .wrap { display: grid; grid-template-columns: 1.4fr 1fr; gap: 32px; }
 footer .links { display: flex; flex-wrap: wrap; gap: 10px 22px; justify-content: flex-end; align-content: start; }
 footer a { color: #fff; }
 
+/* Visor */
+.lb {
+  width: min(1120px, calc(100vw - 32px)); max-width: none; max-height: calc(100dvh - 32px);
+  padding: 0; border: 0; border-radius: 18px; overflow: auto;
+  background: var(--dusk); color: var(--text);
+  box-shadow: 0 30px 80px rgba(10, 5, 20, 0.6);
+}
+.lb::backdrop { background: rgba(20, 13, 34, 0.86); backdrop-filter: blur(6px); }
+.lb-grid { display: grid; grid-template-columns: 1.7fr 1fr; }
+.lb-media { background: #000; display: flex; align-items: center; justify-content: center; min-height: 280px; }
+.lb-media img, .lb-media video { width: 100%; height: 100%; max-height: calc(100dvh - 32px); object-fit: contain; display: block; }
+.lb-text { padding: 34px 30px 30px; display: flex; flex-direction: column; gap: 12px; }
+.lb-text h3 { font-size: 1.5rem; padding-right: 40px; }
+.lb-text p { color: var(--muted); }
+.lb-text ul { margin: 0; padding-left: 1.1em; color: var(--muted); }
+.lb-text li + li { margin-top: 6px; }
+.lb-text .actions { margin-top: auto; padding-top: 12px; }
+.lb-close {
+  position: absolute; top: 14px; right: 14px; z-index: 2;
+  width: 44px; height: 44px; border-radius: 999px; border: 0; cursor: pointer;
+  background: rgba(36, 26, 56, 0.85); color: #fff; display: grid; place-items: center;
+}
+.lb-close:hover { background: var(--plum); }
+.lb-close svg { width: 20px; height: 20px; }
+.lb[open] { animation: lb-in 220ms cubic-bezier(.2,.7,.2,1); }
+@keyframes lb-in { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .lb[open] { animation: none; } }
+body:has(.lb[open]) { overflow: hidden; }
+
 /* Responsive */
 @media (max-width: 980px) {
   .nav { display: none; }
-  .demo, .safe { grid-template-columns: 1fr; }
+  .demo, .safe, .lb-grid { grid-template-columns: 1fr; }
+  .lb-text { padding: 24px 20px 24px; }
   .cards { grid-template-columns: repeat(2, 1fr); }
   .features { grid-template-columns: repeat(2, 1fr); }
   .steps { grid-template-columns: repeat(2, 1fr); }
@@ -294,31 +324,31 @@ footer a { color: #fff; }
     </div>
     <div class="demo">
       <article class="demo-main">
-        <a href="https://github.com/xcolen-maker/LanzadorXbox/blob/main/docs/demo.mp4">
+        <a href="demo.mp4" data-lb="video">
           <img src="screenshots/demo.webp" alt="Video: el lanzador abre un emulador y arranca el juego" data-i-alt="demo_alt" loading="lazy">
           <div class="cap">
             <p class="kicker" data-i="demo_kicker">Video, 57 segundos</p>
             <h3 data-i="demo_h3">De la lista de emuladores al juego en marcha</h3>
-            <p data-i="demo_p">Mira el video completo en GitHub.</p>
+            <p data-i="demo_p">Pulsa para ver el video completo.</p>
           </div>
         </a>
       </article>
       <div class="news">
-        <a href="screenshots/install.webp">
+        <a href="screenshots/install.webp" data-lb="install">
           <img src="screenshots/install.webp" alt="" loading="lazy">
           <div>
             <p class="kicker" data-i="n1_k">Instalar</p>
             <h3 data-i="n1_t">Descarga y compila el emulador por ti</h3>
           </div>
         </a>
-        <a href="screenshots/play.webp">
+        <a href="screenshots/play.webp" data-lb="update">
           <img src="screenshots/play.webp" alt="" loading="lazy">
           <div>
             <p class="kicker" data-i="n2_k">Actualizar</p>
             <h3 data-i="n2_t">Te avisa cuando hay cambios nuevos y los aplica</h3>
           </div>
         </a>
-        <a href="https://github.com/xcolen-maker/LanzadorXbox/releases">
+        <a href="https://github.com/xcolen-maker/LanzadorXbox/releases" data-lb="news">
           <img src="assets/final.jpg" alt="" loading="lazy">
           <div>
             <p class="kicker" data-i="n3_k">Novedades</p>
@@ -525,6 +555,21 @@ footer a { color: #fff; }
 </section>
 </main>
 
+<dialog class="lb" id="lb" aria-labelledby="lb-title">
+  <button class="lb-close" type="button" id="lb-close" aria-label="Cerrar">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+  </button>
+  <div class="lb-grid">
+    <div class="lb-media" id="lb-media"></div>
+    <div class="lb-text">
+      <p class="kicker" id="lb-kicker"></p>
+      <h3 id="lb-title"></h3>
+      <div id="lb-body"></div>
+      <div class="actions" id="lb-actions"></div>
+    </div>
+  </div>
+</dialog>
+
 <footer>
   <div class="wrap">
     <p data-i="legal">Lanzador Xbox es un proyecto de fans, independiente y sin relación con Rockstar Games, Take-Two Interactive ni Microsoft. Grand Theft Auto, sus logotipos e imágenes pertenecen a sus dueños. No se incluye ni se distribuye ningún juego.</p>
@@ -547,7 +592,7 @@ footer a { color: #fff; }
     dl_btn: "Download for Windows", gh_btn: "View on GitHub",
     hero_note: "Free and open source. Installer,", hero_zip: "Rather not install?", hero_zip_link: "Get the portable ZIP",
     demo_title: "How it works", demo_lead: "Pick an emulator on the left, press JUGAR (play) and the launcher does the rest.",
-    demo_kicker: "Video, 57 seconds", demo_h3: "From the emulator list to the game running", demo_p: "Watch the full video on GitHub.",
+    demo_kicker: "Video, 57 seconds", demo_h3: "From the emulator list to the game running", demo_p: "Click to watch the full video.",
     demo_alt: "Video: the launcher opens an emulator and starts the game",
     n1_k: "Install", n1_t: "Downloads and builds the emulator for you",
     n2_k: "Update", n2_t: "Tells you when there are new changes and applies them",
@@ -649,6 +694,95 @@ footer a { color: #fff; }
       document.querySelectorAll("[data-ver-plain]").forEach(function (n) { n.textContent = version; });
     })
     .catch(function () {});
+
+  // Visor de imágenes y video
+  var LB = {
+    es: {
+      close: "Cerrar", back: "Volver",
+      video: { k: "Video, 57 segundos", t: "De la lista de emuladores al juego en marcha",
+        b: "<p>Así se ve un uso normal del lanzador:</p><ul><li>Se elige un emulador instalado en la lista de la izquierda.</li><li>Se pulsa JUGAR y el botón cambia a DETENER mientras el emulador está abierto.</li><li>El emulador arranca y carga el juego.</li></ul><p>El video no tiene sonido.</p>" },
+      install: { k: "Instalar", t: "Descarga y compila el emulador por ti",
+        b: "<p>Cuando eliges un emulador que todavía no tienes, la tarjeta dice NO INSTALADO y aparece el botón INSTALAR.</p><ul><li>Lo descarga de su repositorio original en GitHub.</li><li>Lo compila con Rust, sin que tengas que abrir una consola.</li><li>Si te falta algo para compilar, como Rust o el Windows SDK, la pestaña INSTALAR te lo indica.</li></ul>" },
+      update: { k: "Actualizar", t: "Te avisa cuando hay cambios nuevos y los aplica",
+        b: "<p>Cada tarjeta muestra el estado del emulador: NUEVA VERSIÓN, INSTALADO o NO INSTALADO.</p><ul><li>Si hay cambios nuevos, te dice cuántos y desde cuándo tienes tu versión.</li><li>Con ACTUALIZAR los aplica y vuelve a compilar.</li><li>Si usas tu propia copia, mezcla los cambios con los tuyos. Si chocan, te avisa y deja todo como estaba.</li></ul>" },
+      news: { k: "Novedades", t: "Versión {v}: interfaz en 5 idiomas",
+        b: "<p>El lanzador ahora se usa en español, inglés, portugués, francés y ruso.</p><ul><li>La primera vez usa el idioma de tu Windows.</li><li>Puedes cambiarlo en Ajustes o en la pantalla de configuración inicial.</li></ul>",
+        btn: "Ver todas las versiones" }
+    },
+    en: {
+      close: "Close", back: "Back",
+      video: { k: "Video, 57 seconds", t: "From the emulator list to the game running",
+        b: "<p>This is what normal use of the launcher looks like:</p><ul><li>An installed emulator is picked in the list on the left.</li><li>JUGAR (play) is pressed, and the button turns into DETENER (stop) while the emulator is open.</li><li>The emulator starts and loads the game.</li></ul><p>The video has no sound.</p>" },
+      install: { k: "Install", t: "Downloads and builds the emulator for you",
+        b: "<p>When you pick an emulator you don't have yet, its card says NO INSTALADO (not installed) and the INSTALAR (install) button appears.</p><ul><li>It downloads it from its original GitHub repository.</li><li>It builds it with Rust, without you opening a console.</li><li>If something needed to build is missing, like Rust or the Windows SDK, the INSTALAR tab tells you.</li></ul>" },
+      update: { k: "Update", t: "Tells you when there are new changes and applies them",
+        b: "<p>Each card shows the emulator's state: NUEVA VERSIÓN (new version), INSTALADO (installed) or NO INSTALADO (not installed).</p><ul><li>If there are new changes, it tells you how many and how old your version is.</li><li>ACTUALIZAR (update) applies them and builds again.</li><li>If you use your own copy, it merges the changes with yours. If they conflict, it tells you and leaves everything as it was.</li></ul>" },
+      news: { k: "What's new", t: "Version {v}: interface in 5 languages",
+        b: "<p>The launcher now works in English, Spanish, Portuguese, French and Russian.</p><ul><li>The first time, it uses your Windows language.</li><li>You can change it in Settings or on the initial setup screen.</li></ul>",
+        btn: "See all versions" }
+    }
+  };
+  var lb = document.getElementById("lb");
+  var lbMedia = document.getElementById("lb-media");
+  var lastFocus = null;
+
+  function openLb(link) {
+    var id = link.dataset.lb;
+    var L = LB[document.documentElement.lang === "en" ? "en" : "es"];
+    var it = L[id];
+    lbMedia.innerHTML = "";
+    if (id === "video") {
+      var v = document.createElement("video");
+      v.src = "demo.mp4"; v.controls = true; v.autoplay = true; v.muted = true; v.playsInline = true;
+      v.poster = "screenshots/demo.webp";
+      lbMedia.appendChild(v);
+    } else {
+      var src = link.querySelector("img");
+      var img = document.createElement("img");
+      img.src = id === "news" ? "assets/final.jpg" : link.getAttribute("href");
+      img.alt = src ? src.alt : "";
+      lbMedia.appendChild(img);
+    }
+    document.getElementById("lb-kicker").textContent = it.k;
+    document.getElementById("lb-title").textContent = it.t.replace("{v}", version);
+    document.getElementById("lb-body").innerHTML = it.b;
+    var acts = document.getElementById("lb-actions");
+    acts.innerHTML = "";
+    var back = document.createElement("button");
+    back.type = "button"; back.className = "btn btn-main btn-small"; back.textContent = L.back;
+    back.addEventListener("click", closeLb);
+    acts.appendChild(back);
+    if (it.btn) {
+      var a = document.createElement("a");
+      a.className = "btn btn-line btn-small"; a.href = link.href; a.textContent = it.btn;
+      acts.appendChild(a);
+    }
+    document.getElementById("lb-close").setAttribute("aria-label", L.close);
+    lastFocus = link;
+    lb.showModal();
+    history.pushState({ lb: id }, "", "#" + id);
+  }
+  function closeLb() {
+    if (!lb.open) return;
+    if (history.state && history.state.lb) { history.back(); } else { finishClose(); }
+  }
+  function finishClose() {
+    var v = lbMedia.querySelector("video"); if (v) v.pause();
+    if (lb.open) lb.close();
+    lbMedia.innerHTML = "";
+    if (lastFocus) lastFocus.focus();
+  }
+  document.querySelectorAll("[data-lb]").forEach(function (link) {
+    link.addEventListener("click", function (e) {
+      if (e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
+      e.preventDefault(); openLb(link);
+    });
+  });
+  document.getElementById("lb-close").addEventListener("click", closeLb);
+  lb.addEventListener("cancel", function (e) { e.preventDefault(); closeLb(); });
+  lb.addEventListener("click", function (e) { if (e.target === lb) closeLb(); });
+  window.addEventListener("popstate", function () { if (lb.open) finishClose(); });
+  if (/^#(video|install|update|news)$/.test(location.hash)) history.replaceState(null, "", location.pathname);
 })();
 </script>
 </body>
