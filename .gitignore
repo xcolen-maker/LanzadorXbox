@@ -1,6 +1,1 @@
 /target
-# Los ejecutables se comparten en Releases, no en el repositorio.
-*.exe
-# Imágenes del juego: tienen derechos de autor, cada uno pone las suyas (ver README).
-/assets/
-/imagenes/

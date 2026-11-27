@@ -40,10 +40,16 @@ nuevos con los tuyos; si chocan, te avisa y no toca nada.
 Para probar sin abrir la ventana: `Lanzador-Xbox.exe --detect` muestra lo que encuentra
 (también `--check`, `--prereq`, `--env` e `--install <xcl|victory|fork|nvidia>`).
 
+## Descarga
+
+`Lanzador-Xbox.exe` ya viene compilado en esta carpeta, junto con la carpeta `imagenes`.
+Dejá las dos juntas y abrí el `.exe`.
+
 ## Imágenes
 
-El lanzador no trae imágenes: sin ellas dibuja un atardecer. Para ponerle las tuyas,
-abrí **Ajustes → Imágenes** (es `%LOCALAPPDATA%\XboxLanzador\imagenes`) y copiá:
+Las imágenes de la carpeta `imagenes` (junto al `.exe`) son el logo y los fondos. Sin
+imágenes el lanzador dibuja un atardecer. Para cambiarlas, reemplazá esos archivos o usá
+**Ajustes → Imágenes** (es `%LOCALAPPDATA%\XboxLanzador\imagenes`, que tiene prioridad):
 
 - `logo.png`: el logo que va arriba del botón.
 - Los fondos, en `.jpg` o `.png`, con cualquier nombre. Cada emulador usa uno, en orden.
