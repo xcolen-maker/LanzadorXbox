@@ -37,31 +37,83 @@ The program is not signed, so Windows may show **"Windows protected your PC"**. 
 
 ### Antivirus warnings (false positives)
 
-A few antivirus engines may flag the installer. On
-[VirusTotal](https://www.virustotal.com/gui/file/0cb609fecdce19221604f1aa5082221344af10d39b1d068f78217f1ee25b2598),
-`LanzadorXbox-Setup-0.2.0.exe` is flagged by **4 of 70** engines (Arctic Wolf,
-DeepInstinct, SecureAge and Skyhigh), with the generic label `ObfuscatedPoly`. The other
-66, including Microsoft Defender, Kaspersky, ESET, Bitdefender and Avast, detect nothing.
+A few antivirus engines may flag the installer. This section explains exactly which ones,
+why, and how you can check for yourself that the file is safe.
 
-These are false positives. The reasons:
+On [VirusTotal](https://www.virustotal.com/gui/file/0cb609fecdce19221604f1aa5082221344af10d39b1d068f78217f1ee25b2598),
+`LanzadorXbox-Setup-0.2.0.exe` is flagged by **4 of 70** engines. The other 66, including
+Microsoft Defender, Kaspersky, ESET, Bitdefender and Avast, detect nothing.
 
-- **They are AI/heuristic engines.** They don't match a known virus; they guess from how
-  the file looks. `ObfuscatedPoly` means "looks like obfuscated code", not a named threat.
+| Engine | What it is | Why it probably flags the file |
+| --- | --- | --- |
+| **DeepInstinct** | A deep-learning model that predicts whether an unknown file is malicious. | It does not look for a known virus: it scores how much the file *resembles* malware. It is known for flagging new, rare executables, and this one is both. The label it gave was `ObfuscatedPoly`, which means "looks like obfuscated code", not a named threat. |
+| **SecureAge** | An AI/static engine (APEX) that decides from the file's structure, without running it. | Same idea: the installer carries a large block of compressed data, which this kind of model reads as "packed". It does not name any malware family. |
+| **Skyhigh** | A reputation and heuristics engine (formerly McAfee Enterprise). | It distrusts files that few people have downloaded yet. It does not need to find anything bad inside; "unknown and unsigned" is enough for a generic detection. |
+| **Arctic Wolf** | An engine from a managed security-monitoring service. | It uses a generic "unsafe" verdict based on file traits and reputation, again with no malware family named. |
+
+None of the four names a real malware family (no trojan, stealer or ransomware name). All
+four are generic, AI or reputation based verdicts, which are the ones that produce false
+positives. That is also why the large, signature-based engines say nothing: there is no
+known malware to match.
+
+#### Why this file triggers them
+
 - **The installer is compressed.** Inno Setup stores the launcher and its images
   compressed at the end of the `.exe` (the `overlay` tag on VirusTotal). To an automated
-  scan, compressed data looks like obfuscated data, which is a trick malware uses to
-  hide. This happens to many legitimate installers.
+  scan, compressed data looks like obfuscated data, which is a trick malware uses to hide
+  its code. Many legitimate installers get flagged for the same reason.
 - **It is not code-signed.** A publisher certificate is what gives Windows and antivirus
-  software a reason to trust a file.
-- **It is a new file.** Reputation-based engines distrust anything nobody has seen before.
-  This improves on its own as more people download it.
-- **What the launcher does looks like what malware does.** It downloads code from the
-  internet, runs programs (`git`, `cargo`) and can stop processes. That is exactly what it
-  needs to install and run the emulators, but a heuristic engine can't tell the difference.
+  software a reason to trust a file. Certificates cost money every year, and this is a free
+  hobby project, so it is unsigned. That is also why Windows shows "Windows protected your
+  PC" (SmartScreen).
+- **It is a new file with few downloads.** Reputation-based engines distrust anything
+  nobody has seen before. Every new version is a new file with no history, so this
+  repeats on each release and improves as more people download it.
+- **What the launcher does looks like what malware does.** It downloads code from GitHub,
+  runs other programs (`git`, `cargo`) and can stop a running emulator process. That is
+  exactly what it needs to install, build and run the emulators, but a heuristic engine
+  only sees "downloads and runs things" and cannot tell the difference.
+- **It was written in Rust.** Rust executables are large and have unusual structure for
+  scanners trained mostly on C/C++ and .NET files, and some malware is also written in
+  Rust, so some models are cautious with it.
 
-You can check it yourself: the source code is in this repository, and you can build the
-`.exe` from it (see [Building](#building)). The portable ZIP contains the same
-`Lanzador-Xbox.exe` without the installer's compression.
+#### What the launcher does and does not do
+
+- It talks only to GitHub (to download the emulators you choose) and to the tools it
+  installs on your PC. It has no server of its own, no telemetry and no account.
+- It does not collect or send any information about you or your computer.
+- It stores its settings in `%LOCALAPPDATA%\XboxLanzador` and nowhere else.
+- It does not start with Windows, does not hide itself and does not change system
+  settings. The installer installs per user and needs no administrator rights.
+- The full source code is in this repository: you can read every line.
+
+#### How to check it yourself
+
+1. **Build it from the source** (see [Building](#building)) and compare the behaviour. The
+   code is the only thing that decides what the program does.
+2. **Use the portable ZIP.** It contains the same `Lanzador-Xbox.exe` without the
+   installer's compression, which removes the main reason for the warnings.
+3. **Check the file you downloaded** against the SHA-256 of the current version
+   (`0.3.0`), then scan it yourself on [VirusTotal](https://www.virustotal.com/) by
+   uploading it or searching for the hash:
+
+   ```
+   LanzadorXbox-Setup-0.3.0.exe
+   ddaed9f49fba434eaa409c847240667ef6617dfd829f53fce969e379278f6956
+
+   LanzadorXbox-v0.3.0.zip
+   37f05beee614bf86c0b6b1c2f005c6d9cac61f7e5658007c1b1c0dc93132c7b2
+   ```
+
+   In PowerShell: `Get-FileHash .\LanzadorXbox-Setup-0.3.0.exe`
+
+   The VirusTotal report linked above is for version `0.2.0`; the numbers can differ for
+   `0.3.0`, and they change over time as engines update.
+4. **If you still don't trust it, don't run it.** Building from source is always an option.
+
+If an engine flags a file, that is a reason to look, not proof. Here the look shows
+generic AI and reputation verdicts on an unsigned, compressed, brand-new installer, and no
+named malware.
 
 ## How to use it
 
