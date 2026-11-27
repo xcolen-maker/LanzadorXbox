@@ -24,6 +24,12 @@ An installed emulator with an update available, ready to play:
 
 ![Lanzador Xbox with VIctory NVIDIA selected, showing the JUGAR and ACTUALIZAR buttons](docs/screenshots/play.webp)
 
+## Demo
+
+Picking an emulator in the launcher, pressing **JUGAR** and starting the game ([watch the full video](docs/demo.mp4), 57 s, no sound):
+
+[![Lanzador Xbox demo: selecting emulators, launching one and starting the game](docs/screenshots/demo.webp)](docs/demo.mp4)
+
 ## Download
 
 Get the latest version from [Releases](../../releases/latest):
